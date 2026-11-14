@@ -16,7 +16,7 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 | P | Pause |
 | M | Mute |
 | G | Switch Classic (chunky 320×200) / Enhanced (4× HD) graphics |
-| T | Realistic textures on/off (Enhanced mode) |
+| T | Realistic textures and natural details (moss, grass, puddles) on/off |
 
 ## Features
 
@@ -42,7 +42,8 @@ The sound recordings and textures are embedded as base64 in a second `<script>` 
 
 The textures are generated, not downloaded: `tools/make_textures.py` builds seamless rock, brick, backdrop,
 ore and lava textures from lit height maps (layered noise + Voronoi stone cells). Run it with Python 3,
-NumPy and Pillow to regenerate or tweak them.
+NumPy and Pillow to regenerate or tweak them. `tools/make_decorations.py` makes the moss, hanging moss,
+grass and mud-puddle sprites; each level's `deco` setting controls how much of each appears.
 
 ## Credits
 
