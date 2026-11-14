@@ -17,10 +17,12 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 | M | Mute |
 | G | Switch Classic (chunky 320×200) / Enhanced (4× HD) graphics |
 | T | Realistic textures and natural details (moss, grass, puddles) on/off |
+| 1–9, 0 | Testing: jump straight to level 1–10 (also buttons in the tuning panel) |
 
 ## Features
 
-- 4 levels of mine shafts with flip-screen rooms, like the Atari 2600 original
+- 10 levels of mine shafts with flip-screen rooms, like the Atari 2600 original – each with its own
+  name, rock colour and power supply
 - Acceleration-based physics with a live tuning panel (top-right of the page)
 - Segmented laser, dynamite with realistic explosions, breakable walls
 - Gold & copper ore veins – mine them for money ($)
@@ -44,6 +46,8 @@ The textures are generated, not downloaded: `tools/make_textures.py` builds seam
 ore and lava textures from lit height maps (layered noise + Voronoi stone cells). Run it with Python 3,
 NumPy and Pillow to regenerate or tweak them. `tools/make_decorations.py` makes the moss, hanging moss,
 grass and mud-puddle sprites; each level's `deco` setting controls how much of each appears.
+`tools/check_levels.py` holds the maps for levels 5–10 and checks every miner is reachable,
+every creature has room to move, and places the ore veins.
 
 ## Credits
 

@@ -95,6 +95,12 @@ LEVELS = [
     dict(name='L2', rock='#5f8a2a', wall='#d0d878', bg='#121c0a'),
     dict(name='L3', rock='#2f62a8', wall='#98c0f0', bg='#0a1426'),
     dict(name='L4', rock='#8a3aa8', wall='#e0a8f0', bg='#1a0c24'),
+    dict(name='L5', rock='#6e7480', wall='#c8ccd4', bg='#14161c'),   # slate
+    dict(name='L6', rock='#a8483a', wall='#e8b0a0', bg='#200c08'),   # red sandstone
+    dict(name='L7', rock='#2a8a86', wall='#a0e0dc', bg='#082020'),   # teal
+    dict(name='L8', rock='#b08a2a', wall='#f0dc98', bg='#1e1606'),   # ochre
+    dict(name='L9', rock='#4a4a52', wall='#b0b0bc', bg='#0e0e12'),   # basalt
+    dict(name='L10', rock='#8a1e2a', wall='#e89aa4', bg='#1e060a'),  # crimson, near the core
 ]
 
 def rock_texture(pal, seed, n=256):
