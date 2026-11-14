@@ -16,6 +16,7 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 | P | Pause |
 | M | Mute |
 | G | Switch Classic (chunky 320×200) / Enhanced (4× HD) graphics |
+| T | Realistic textures on/off (Enhanced mode) |
 
 ## Features
 
@@ -37,7 +38,11 @@ Everything lives in `index.html`. The script is split into numbered sections:
 6. **Drawing** – Classic (rectangles) and Enhanced (gradients, lighting, particles) renderers
 7. **Main loop** – fixed 60 Hz update + render
 
-The sound recordings are embedded as base64 in a second `<script>` block at the end of the file.
+The sound recordings and textures are embedded as base64 in a second `<script>` block at the end of the file.
+
+The textures are generated, not downloaded: `tools/make_textures.py` builds seamless rock, brick, backdrop,
+ore and lava textures from lit height maps (layered noise + Voronoi stone cells). Run it with Python 3,
+NumPy and Pillow to regenerate or tweak them.
 
 ## Credits
 
