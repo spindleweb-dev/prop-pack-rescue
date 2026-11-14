@@ -10,20 +10,16 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 | Key | Action |
 |---|---|
 | ← → | Move |
-| ↑ (hold) | Prop-pack (fly) / climb ladders |
+| ↑ (hold) | Prop-pack (fly) |
 | Space | Laser |
-| ↓ | Drop dynamite / climb down / let go of a rope |
-| Z / X | Dig dirt down-left / down-right (Lode Runner style) |
-| C | Dig dirt straight ahead |
+| ↓ | Drop dynamite |
 | P | Pause |
 | M | Mute |
 | G | Switch Classic (chunky 320×200) / Enhanced (4× HD) graphics |
 
 ## Features
 
-- Chapter 1: 4 levels of mine shafts with large 32×18-tile flip-screen rooms
-- Chapter 2 "The Workings": 2 Lode Runner-style levels – ladders, ropes, diggable dirt with refilling holes,
-  gold pockets and mine rats you trap in your holes (firedamp gas switches the prop-pack off)
+- 4 levels of mine shafts with flip-screen rooms, like the Atari 2600 original
 - Acceleration-based physics with a live tuning panel (top-right of the page)
 - Segmented laser, dynamite with realistic explosions, breakable walls
 - Gold & copper ore veins – mine them for money ($)
@@ -34,7 +30,7 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 Everything lives in `index.html`. The script is split into numbered sections:
 
 1. **Constants** – every tunable number in one place
-2. **Level data** – maps drawn as text, one character per tile (each room is 32×18)
+2. **Level data** – maps drawn as text, one character per tile
 3. **Input & audio** – keyboard, Web Audio synth, embedded samples, mixer
 4. **World helpers** – tile lookups and collision
 5. **Game logic** – player, laser, dynamite, mining, enemies, game states

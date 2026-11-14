@@ -26,15 +26,13 @@
 </style>
 </head>
 <body>
-<canvas id="game" tabindex="0"></canvas>
+<canvas id="game" width="1280" height="800" tabindex="0"></canvas>
 <div id="help">
-  <kbd>←</kbd><kbd>→</kbd> move &nbsp; <kbd>↑</kbd> prop-pack / climb &nbsp; <kbd>Space</kbd> laser &nbsp;
-  <kbd>↓</kbd> dynamite / climb down &nbsp; <kbd>Z</kbd><kbd>X</kbd> dig down-left/right &nbsp; <kbd>C</kbd> dig ahead &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>G</kbd> classic / enhanced graphics
+  <kbd>←</kbd><kbd>→</kbd> move &nbsp; <kbd>↑</kbd> prop-pack (hold) &nbsp; <kbd>Space</kbd> laser &nbsp;
+  <kbd>↓</kbd> dynamite &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute &nbsp; <kbd>G</kbd> classic / enhanced graphics
 </div>
 <details id="tuning">
   <summary>Tuning: physics &amp; sound</summary>
-  <h4 style="margin:8px 0 2px;color:#ff8040;font-size:12px">Level select (testing)</h4>
-  <div id="levelButtons"></div>
   <div id="sliders"></div>
   <button id="resetPhys">Reset to defaults</button><button id="copyPhys">Copy values</button>
   <div id="physOut"></div>
@@ -60,11 +58,10 @@
 // 1. CONSTANTS
 // ---------------------------------------------------------------------
 const TILE = 16;                       // one map character = 16x16 pixels
-const ROOM_COLS = 32, ROOM_ROWS = 18;  // one screen ("room") of the mine – big enough for Lode Runner-style layouts
-const VIEW_W = ROOM_COLS * TILE;       // 512
-const VIEW_H = ROOM_ROWS * TILE;       // 288 (the rest is the status bar)
-const HUD_H = 24;
-const SCREEN_W = VIEW_W, SCREEN_H = VIEW_H + HUD_H;   // 512 x 312
+const ROOM_COLS = 20, ROOM_ROWS = 11;  // one screen ("room") of the mine
+const VIEW_W = ROOM_COLS * TILE;       // 320
+const VIEW_H = ROOM_ROWS * TILE;       // 176 (the rest is the status bar)
+const SCREEN_W = 320, SCREEN_H = 200;
 
 const PW = 10, PH = 22;                // hero hit-box size
 
@@ -109,16 +106,7 @@ const ORE = {
   g: { name: 'gold',   nuggets: 3, value: 50, laserTime: 1.2, color: '#ffd23a', dark: '#a87808', light: '#fff6b0' },
   c: { name: 'copper', nuggets: 4, value: 10, laserTime: 0.8, color: '#e07a3a', dark: '#8a3a14', light: '#ffc49a' },
 };
-const DIRT = { color: '#7a5230', dark: '#4e321a', light: '#a07448' };   // soft diggable dirt
 const NUGGET_LIFE = 14;                // seconds before a dropped nugget crumbles away
-
-// Chapter 2 – "the workings" (Lode Runner-style)
-const HOLE_TIME = 6.5;                 // seconds before a dug hole fills back in
-const HOLE_REFILL = 1.0;               // the last part of that, shown as dirt sliding back in
-const DIG_COOLDOWN = 0.28;             // seconds between digs
-const CLIMB_SPEED = 62;                // ladder climbing speed (px/s)
-const BAR_SPEED = 55;                  // hand-over-hand speed along a bar (px/s)
-const PTS_RAT = 75;
 
 // ---------------------------------------------------------------------
 // 2. LEVEL DATA
@@ -126,294 +114,190 @@ const PTS_RAT = 75;
 //    L  lava wall (deadly)    .  empty space
 //    P  hero start            X  trapped miner (the goal)
 //    B  bat   S  spider   M  moth   T  lantern (touch it = lights out!)
-//    g  gold ore vein       c  copper ore vein   (solid rock you can mine for money)
-//    d  soft dirt (dig it)  $  dirt with a gold pocket inside
-//    H  ladder              -  hand-over-hand bar (hang from it)
-//    R  mine rat (walks the floors, falls into your holes)   n  loose gold nugget
-//    (A level may also list extra veins in `ores` as [column, row, 'g'|'c'].)
-//    Every room is 32 columns x 18 rows. Levels are stacks/grids of rooms.
+//    Ore veins are listed separately in each level's `ores` as [column, row, 'g'|'c']
+//    (g = gold, c = copper). They must sit on a '#' rock tile.
+//    Every room is 20 columns x 11 rows. Levels are stacks/grids of rooms.
 // ---------------------------------------------------------------------
 function sideBySide(left, right) { return left.map((row, i) => row + right[i]); }
 
 const LEVELS = [
-  { // ---------------- LEVEL 1: two rooms – learn to fly, shoot, blast and mine ----------------
-    intro: ['CHAPTER 1 · THE UPPER SHAFTS', 'The Deepcut Mine has collapsed. Fly down and rescue the trapped miners.'],
+  { // ---------------- LEVEL 1: two rooms straight down ----------------
     rock: '#b86a2c', dark: '#8a4a1a', light: '#e08c4c', wall: '#e8c070', bgTop: '#24140a', bgBot: '#0b0603',
+    ores: [[0,1,'g'], [19,18,'g'], [10,4,'g'], [0,14,'c'], [0,7,'c'], [19,14,'c'], [17,9,'c'], [9,9,'c']],
     map: [
-      "################################",
-      "#c.............................#",
-      "#..............................#",
-      "#.P............................#",
-      "#..............................#",
-      "##########g###############....##",
-      "##########################....##",
-      "#........W.....................#",
-      "#........W..........B..........c",
-      "#........W.....................#",
-      "#........W.....................#",
-      "#...########g###################",
-      "#...############################",
-      "#...........S..................#",
-      "#..............................#",
-      "#..............................#",
-      "#..............................#",
-      "##########################....##",
+      "####################",
+      "#..................#",
+      "#.P................#",
+      "#..................#",
+      "############.......#",
+      "############.......#",
+      "#..........W.......#",
+      "#..........W...B...#",
+      "#..........W.......#",
+      "#..#################",
+      "#..#################",
       // ---- room 2 ----
-      "##########################....##",
-      "##########################....##",
-      "#..............................#",
-      "c...................T..........#",
-      "#.......M......................#",
-      "#..............................#",
-      "####....########################",
-      "####....########################",
-      "#..............................#",
-      "#..............................g",
-      "#...................B..........#",
-      "#..............................#",
-      "#..............................#",
-      "#..............................#",
-      "c..............................#",
-      "#..............................#",
-      "#..........LLL..............X..#",
-      "####################g###########",
+      "#..#################",
+      "#..#################",
+      "#..........S.......#",
+      "#..................#",
+      "#..................#",
+      "#..................#",
+      "#######LLL.........#",
+      "#####..............#",
+      "#..................#",
+      "#...............X..#",
+      "####################",
     ]
   },
-  { // ---------------- LEVEL 2: lanterns, lava and a big wall ----------------
+  { // ---------------- LEVEL 2: three rooms, lantern & lava -------------
     rock: '#5f8a2a', dark: '#3f6a1a', light: '#86b048', wall: '#d0d878', bgTop: '#121c0a', bgBot: '#050902',
+    ores: [[19,21,'g'], [0,25,'g'], [3,10,'g'], [15,12,'c'], [16,22,'c'], [0,2,'c'], [6,21,'c'], [8,16,'c']],
     map: [
-      "################################",
-      "#.......T..........T...........#",
-      "#............................P.#",
-      "c..............................#",
-      "#..............................#",
-      "#....###########################",
-      "#....###########################",
-      "#....###########################",
-      "c....###########################",
-      "#....###########################",
-      "#...................W..........#",
-      "#.........M.........W..........c",
-      "#...................W......B...#",
-      "#...................W..........#",
-      "##########LL############c#....##",
-      "##########################....##",
-      "##########################....##",
-      "##########################....##",
+      "####################",
+      "#..........T.......#",
+      "#................P.#",
+      "#..................#",
+      "#...################",
+      "#...################",
+      "#...################",
+      "#..................#",
+      "#.........M........#",
+      "#..................#",
+      "################...#",
       // ---- room 2 ----
-      "##########################....##",
-      "##########################....##",
-      "#.....T...........T............#",
-      "g..............................#",
-      "#..........S...................#",
-      "#..............................#",
-      "#..............................c",
-      "#####....#######################",
-      "#####....#######################",
-      "#...............W..............#",
-      "#...............W..............g",
-      "#.......M.......W..............#",
-      "#...............W.......B......#",
-      "#...............W..............#",
-      "#...............W..............#",
-      "#...............W..............#",
-      "#.......LL......W...........X..#",
-      "#######g########################",
-    ]
-  },
-  { // ---------------- LEVEL 3: a 2x2 grid of rooms (right, down, then back left) ----------------
-    rock: '#2f62a8', dark: '#1f4278', light: '#5888d0', wall: '#98c0f0', bgTop: '#0a1426', bgBot: '#03060d',
-    map: [
-      ...sideBySide([   // top-left room
-        "################################",
-        "#..............................#",
-        "#.P............................#",
-        "#..............................#",
-        "#..............................#",
-        "##################.....#########",
-        "##################.....#########",
-        "#...............................",
-        "g....................M..........",
-        "#...............................",
-        "#...............................",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-      ], [              // top-right room
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "..........W.........S..........#",
-        "..........W....................#",
-        "..........W...................c#",
-        "..........W....................#",
-        "#########################....###",
-        "#########################....###",
-        "#c.............................#",
-        "#..............................#",
-        "#.......M......................#",
-        "#..............................#",
-        "#########################....###",
-      ]),
-      ...sideBySide([   // bottom-left room
-        "################################",
-        "################################",
-        "#..........W....................",
-        "#..........W....................",
-        "#..........W....................",
-        "#..........W....................",
-        "#...############################",
-        "#...############################",
-        "#.........T...............S....#",
-        "#..............................#",
-        "#..............................#",
-        "#..............................#",
-        "#..............................#",
-        "#..............................#",
-        "c..............................#",
-        "#..............................#",
-        "#..........................X...#",
-        "#####g##########################",
-      ], [              // bottom-right room
-        "#########################....###",
-        "#########################....###",
-        "...............LL..............#",
-        "..............................g#",
-        "................B..............#",
-        "...............................#",
-        "########c#######################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-        "################################",
-      ]),
-    ]
-  },
-  { // ---------------- LEVEL 4: three rooms deep, lava-lined shafts ----------------
-    rock: '#8a3aa8', dark: '#5a1a78', light: '#b060d0', wall: '#e0a8f0', bgTop: '#1a0c24', bgBot: '#07030c',
-    map: [
-      "################################",
-      "#..............................#",
-      "#.P.........B..................#",
-      "#..............................#",
-      "#..............................#",
-      "#######################L....####",
-      "#######################L....####",
-      "#######################L....####",
-      "#.........W...........S........#",
-      "#.........W....................#",
-      "g.........W....................#",
-      "#.........W....................#",
-      "#...############################",
-      "#...############################",
-      "#...L###########################",
-      "#...L###########################",
-      "#...############################",
-      "#...############################",
-      // ---- room 2 ----
-      "#...############################",
-      "#...############################",
-      "#......................T.......#",
-      "#..............................c",
-      "#.......M......................#",
-      "#..............................#",
-      "##############....######LL######",
-      "##############....##############",
-      "#.........................W....#",
-      "#....B....................W....#",
-      "#.........................W....#",
-      "#.........................W....#",
-      "#####g#####################....#",
-      "###########################....#",
-      "###########################....#",
-      "###########################L...#",
-      "###########################L...#",
-      "###########################....#",
+      "################...#",
+      "################...#",
+      "#...W..............#",
+      "#...W......B.......#",
+      "#...W..............#",
+      "#..#################",
+      "#..#################",
+      "#.......T......S...#",
+      "#..................#",
+      "#.........LLL......#",
+      "#################..#",
       // ---- room 3 ----
-      "###########################....#",
-      "###########################....#",
-      "#..............................#",
-      "#.............S................#",
-      "#..............................#",
-      "#.......M.............B........#",
-      "#..............................#",
-      "####....########################",
-      "####....########################",
-      "#..........W...................#",
-      "#..........W...................#",
-      "#..........W..........M........#",
-      "#..........W...................#",
-      "c..........W...................#",
-      "#..........W...................#",
-      "#..........W...................#",
-      "#..........W..LL...........X...#",
-      "################g###############",
+      "#################..#",
+      "#################..#",
+      "#..................#",
+      "#.......M..........#",
+      "#..................#",
+      "#..#################",
+      "#..#################",
+      "#.........W........#",
+      "#.........W........#",
+      "#.........W......X.#",
+      "####################",
     ]
   },
-  { // ======== CHAPTER 2 · THE WORKINGS ========  LEVEL 5: ladders, a bar over lava, dirt to dig
-    rock: '#7a6a58', dark: '#54473a', light: '#a8947a', wall: '#c8b090', bgTop: '#1c150e', bgBot: '#080604',
-    noProp: true,   // firedamp gas – the prop-pack is switched off on this level
-    intro: ['CHAPTER 2 · THE WORKINGS', 'Firedamp gas! The prop-pack is switched off down here.',
-            'Climb ladders (Up/Down), hang from ropes, dig dirt with Z / X (down) and C (ahead).',
-            'Trap rats in your holes – and get out before a hole fills back in!'],
+  { // ---------------- LEVEL 3: a 2x2 grid of rooms ---------------------
+    rock: '#2f62a8', dark: '#1f4278', light: '#5888d0', wall: '#98c0f0', bgTop: '#0a1426', bgBot: '#03060d',
+    ores: [[19,18,'g'], [3,16,'g'], [15,4,'g'], [34,11,'c'], [0,14,'c'], [39,13,'c'], [32,16,'c'], [21,9,'c']],
     map: [
-      "################################",
-      "#..............................#",
-      "#.P....n...........R.......n...#",
-      "######ddd#################H#####",
-      "#.........................H....#",
-      "#..n......................H....#",
-      "###H##$$########################",
-      "#..H.......-----------.........#",
-      "#..H.............R..........n..#",
-      "############LLLLLLLLL#######H###",
-      "#...........................H..#",
-      "#......R....................H..#",
-      "####ddd#########################",
-      "#..............................#",
-      "#...........n.............X....#",
-      "################################",
-      "################################",
-      "################################",
+      ...sideBySide([
+        "####################",
+        "#..................#",
+        "#.P................#",
+        "#..................#",
+        "##########.....#####",
+        "##########.....#####",
+        "#####...............",
+        "#####.........M.....",
+        "#####...............",
+        "####################",
+        "####################",
+      ], [
+        "####################",
+        "####################",
+        "####################",
+        "####################",
+        "####################",
+        "####################",
+        "......W............#",
+        "......W.....S......#",
+        "......W............#",
+        "###############...##",
+        "###############...##",
+      ]),
+      ...sideBySide([
+        "####################",
+        "####################",
+        "#......W............",
+        "#......W............",
+        "#......W............",
+        "#..#################",
+        "#..#################",
+        "#..........T.......#",
+        "#..................#",
+        "#................X.#",
+        "####################",
+      ], [
+        "###############...##",
+        "###############...##",
+        ".........LL........#",
+        "...................#",
+        "...........B.......#",
+        "####################",
+        "####################",
+        "####################",
+        "####################",
+        "####################",
+        "####################",
+      ]),
     ]
   },
-  { // LEVEL 6: more rats, a dirt wall to dig through, gold pockets
-    rock: '#7a6a58', dark: '#54473a', light: '#a8947a', wall: '#c8b090', bgTop: '#1c150e', bgBot: '#080604',
-    noProp: true,
+  { // ---------------- LEVEL 4: four rooms, lava floors -----------------
+    rock: '#8a3aa8', dark: '#5a1a78', light: '#b060d0', wall: '#e0a8f0', bgTop: '#1a0c24', bgBot: '#07030c',
+    ores: [[11,16,'g'], [19,35,'g'], [18,10,'g'], [19,14,'c'], [19,20,'c'], [0,14,'c'], [9,38,'c'], [5,21,'c']],
     map: [
-      "################################",
-      "#..............................#",
-      "#P....R........n.........R.....#",
-      "##ddd########H########dddd###H##",
-      "#............H....d..........H.#",
-      "#....n.......H....d..R.......H.#",
-      "#######H##############$$########",
-      "#......H--------...............#",
-      "#......H.........R.............#",
-      "########LLLLLLL#########ddd#####",
-      "#..............................#",
-      "#........n...........R.........#",
-      "################ddd#############",
-      "#..............................#",
-      "#...X.........R......n.........#",
-      "################################",
-      "################################",
-      "################################",
+      "####################",
+      "#..................#",
+      "#.P.......B........#",
+      "#..................#",
+      "#############....###",
+      "#############L...###",
+      "#############L...###",
+      "#....W......S......#",
+      "#....W.............#",
+      "#....W.............#",
+      "#...################",
+      // ---- room 2 ----
+      "#...################",
+      "#...################",
+      "#..................#",
+      "#.......M..........#",
+      "#..................#",
+      "########...####LL###",
+      "########...#########",
+      "#..........W.......#",
+      "#....B.....W.......#",
+      "#..........W.......#",
+      "################...#",
+      // ---- room 3 ----
+      "################...#",
+      "################...#",
+      "#..S.......T.......#",
+      "#.........M........#",
+      "#..................#",
+      "#..#####LL##########",
+      "#..#################",
+      "#..#################",
+      "#..#################",
+      "#..#################",
+      "#..#################",
+      // ---- room 4 ----
+      "#..#################",
+      "#..#################",
+      "#.....W............#",
+      "#.....W.....M......#",
+      "#.....W............#",
+      "###############....#",
+      "###############....#",
+      "#..................#",
+      "#.....B............#",
+      "#.X................#",
+      "####################",
     ]
   },
 ];
@@ -422,8 +306,7 @@ const LEVELS = [
 // 3. INPUT & AUDIO
 // ---------------------------------------------------------------------
 const canvas = document.getElementById('game');
-const RES = 3;                                   // enhanced mode draws at 3x (1536 x 936)
-canvas.width = SCREEN_W * RES; canvas.height = SCREEN_H * RES;
+const RES = 4;                                   // enhanced mode draws at 4x
 const mainCtx = canvas.getContext('2d');
 const lowCanvas = document.createElement('canvas');  // 320x200 buffer for CLASSIC mode
 lowCanvas.width = SCREEN_W; lowCanvas.height = SCREEN_H;
@@ -437,13 +320,10 @@ const pressed = {};   // true only on the update step the key went down
 const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
-  Space: 'fire', ControlLeft: 'fire',
-  KeyZ: 'digL', KeyX: 'digR', KeyC: 'digF',            // Lode Runner-style digging
+  Space: 'fire', KeyX: 'fire', KeyZ: 'fire', ControlLeft: 'fire',
   KeyP: 'pause', Escape: 'pause', Enter: 'start', KeyM: 'mute', KeyG: 'gfx',
 };
 addEventListener('keydown', e => {
-  const num = /^Digit([1-9])$/.exec(e.code);
-  if (num && !(e.target instanceof HTMLInputElement)) { requestLevel(+num[1] - 1); ensureAudio(); e.preventDefault(); return; }
   const k = KEYMAP[e.code]; if (!k) return;
   e.preventDefault();
   if (!keys[k]) pressed[k] = true;
@@ -616,7 +496,7 @@ function updateSoundLoops() {
   const t = actx.currentTime, live = state === 'playing' && !paused && !muted;
   const spin = player ? Math.min(1, player.spin / Math.max(0.01, PHYS.spinUp)) : 0;
   if (heliSrc) {                         // recorded rotor with smooth taper in/out
-    const thrusting = live && player && player.thrusting;
+    const thrusting = live && player && keys.up;
     heliGain.gain.setTargetAtTime(thrusting ? sampleGain('rotor') : 0, t, thrusting ? ROTOR_FADE_IN : ROTOR_FADE_OUT);
     heliSrc.playbackRate.setTargetAtTime(thrusting ? 1 : 0.8, t, thrusting ? 0.15 : 0.4);   // spool up / wind down
     propGain.gain.setTargetAtTime(0, t, 0.03);
@@ -650,8 +530,7 @@ function tileAt(c, r) {
   if (r < 0 || c < 0 || r >= level.rows || c >= level.cols) return '#';
   return level.tiles[r][c];
 }
-function isSolid(t) { return t === '#' || t === 'W' || t === 'L' || t === 'g' || t === 'c' || t === 'd' || t === '$'; }
-const isDirt = t => t === 'd' || t === '$';
+function isSolid(t) { return t === '#' || t === 'W' || t === 'L' || t === 'g' || t === 'c'; }
 
 // Call fn(tile, col, row) for every tile a rectangle overlaps; stop on true.
 function anyTileUnder(x, y, w, h, fn) {
@@ -697,15 +576,13 @@ try { hiScore = +localStorage.getItem('propPackHi') || 0; } catch (e) {}
 let player = null, enemies = [], lanterns = [], miner = null, dynamite = null, particles = [];
 let roomX = 0, roomY = 0, checkpoint = null, lightsOut = false, flash = 0, shake = 0;
 let scorches = [], mapVersion = 0, blasting = false;
-let money = 0, nuggets = [];
-let holes = new Map();                 // dug holes: "c,r" -> { c, r, t (seconds left) }
-let introT = 0;                        // chapter/level intro banner timer          // money is kept for the whole game – ready for a future shop   // mapVersion changes whenever the map does (for the HD tile cache)
+let money = 0, nuggets = [];          // money is kept for the whole game – ready for a future shop   // mapVersion changes whenever the map does (for the HD tile cache)
 let stateTimer = 0, tallyAcc = 0, tickT = 0, globalT = 0;
 
 function loadLevel(i) {
   const def = LEVELS[i];
   level = { def, cols: def.map[0].length, rows: def.map.length, tiles: [], wallHp: new Map() };
-  enemies = []; lanterns = []; miner = null; dynamite = null; particles = []; scorches = []; nuggets = []; holes = new Map();
+  enemies = []; lanterns = []; miner = null; dynamite = null; particles = []; scorches = []; nuggets = [];
   lightsOut = false; flash = 0; shake = 0; mapVersion++;
   let start = { x: 0, y: 0 };
   def.map.forEach((line, r) => {
@@ -719,17 +596,11 @@ function loadLevel(i) {
       else if (ch === 'M') enemies.push({ type: 'moth', x: x + 3, y: y + 4, homeX: x + 3, homeY: y + 4, w: 10, h: 8, t: Math.random() * 6, alive: true });
       else if (ch === 'S') enemies.push({ type: 'spider', x: x + 2, y: y + 2, top: y + 2, w: 12, h: 10, dir: 1, speed: 24, col: c, row: r, t: 0, alive: true });
       else if (ch === 'T') lanterns.push({ x: x + 4, y: y, w: 8, h: 11, lit: true });
-      else if (ch === 'R') enemies.push({ type: 'rat', x: x + 2, y: y + TILE - 7, w: 12, h: 7, vx: 30, vy: 0, t: Math.random() * 6, alive: true, trapped: false });
-      else if (ch === 'n') nuggets.push({ kind: 'g', x: x + 5.5, y: y + TILE - 4, w: 5, h: 4, age: 1, vx: 0, vy: 0, life: Infinity, spin: rnd(6) });
-      if ('PXBMSTRn'.includes(ch)) t = '.';
+      if ('PXBMST'.includes(ch)) t = '.';
       row.push(t);
     }
     level.tiles.push(row);
   });
-  // Safety net: if the start point would put the hero inside rock, nudge him down/sideways into open space.
-  for (let tries = 0; tries < 6 && rectHitsSolid(start.x, start.y, PW, PH); tries++) start.y += TILE / 2;
-  if (rectHitsSolid(start.x, start.y, PW, PH)) start.y -= TILE * 3;   // gave up going down – try back up
-
   // Place the ore veins listed for this level.
   for (const [c, r, kind] of def.ores || []) if (level.tiles[r] && level.tiles[r][c] === '#') level.tiles[r][c] = kind;
   // Spiders need the finished map: find the ceiling for the thread and how far down they can go.
@@ -742,24 +613,15 @@ function loadLevel(i) {
   return start;
 }
 
-function startGame(startLevel = 0) {
-  score = 0; money = 0; lives = START_LIVES; nextExtraLife = EXTRA_LIFE_EVERY; levelIndex = startLevel;
+function startGame() {
+  score = 0; money = 0; lives = START_LIVES; nextExtraLife = EXTRA_LIFE_EVERY; levelIndex = 0;
   beginLevel();
-}
-
-// ---- Level select (for testing) ----------------------------------------
-// Press 1–9 at any time (or use the buttons in the tuning panel) to jump
-// straight to that level with a fresh game.
-let jumpToLevel = null;
-function requestLevel(n) {
-  if (n >= 0 && n < LEVELS.length) { jumpToLevel = n; paused = false; }
 }
 function beginLevel() {
   const start = loadLevel(levelIndex);
   power = 100; dynamiteLeft = DYNAMITE_PER_LIFE;
   spawnPlayer(start);
   state = 'playing';
-  introT = LEVELS[levelIndex].intro ? 4.5 : 0;
 }
 function spawnPlayer(pos) {
   player = { x: pos.x, y: pos.y, w: PW, h: PH, vx: 0, vy: 0, facing: 1, onGround: false,
@@ -870,88 +732,20 @@ function updatePlaying(dt) {
     p.vx = Math.abs(p.vx) <= d ? 0 : p.vx - Math.sign(p.vx) * d;
   }
 
-  // --- Ladders: if a ladder runs through your body (or you press Down standing
-  //     on the top of one) you climb instead of falling or flying. ---
-  const cx = p.x + PW / 2, col = Math.floor(cx / TILE);
-  const feetRow = Math.floor((p.y + PH - 1) / TILE), belowRow = Math.floor((p.y + PH + 1) / TILE);
-  let onLadder = false;
-  for (let r = Math.floor((p.y + 4) / TILE); r <= feetRow; r++) if (tileAt(col, r) === 'H') onLadder = true;
-  if (!onLadder && keys.down && tileAt(col, belowRow) === 'H') onLadder = true;
-  p.onLadder = onLadder;
-  p.climbing = onLadder && (keys.up || keys.down || !p.onGround);   // facing the ladder
-  if (p.dropT > 0) p.dropT -= dt;
-
-  const canFly = !LEVELS[levelIndex].noProp;   // firedamp levels switch the prop-pack off
-  p.thrusting = false;
-  if (onLadder) {
-    p.spin = Math.max(0, p.spin - dt * 3);
-    p.vy = keys.up ? -CLIMB_SPEED : keys.down ? CLIMB_SPEED : 0;
-    if (keys.up || keys.down) {             // slide toward the middle of the ladder
-      const target = col * TILE + TILE / 2 - PW / 2, d = target - p.x;
-      p.x += Math.sign(d) * Math.min(Math.abs(d), 90 * dt);
-      p.climbT = (p.climbT || 0) + dt;
-    }
-    if (Math.abs(p.vx) > PHYS.maxSpeed * 0.6) p.vx = Math.sign(p.vx) * PHYS.maxSpeed * 0.6;
-  } else {
-    // --- Prop-pack: a short spin-up, then thrust (plus extra "brake" if you're falling) ---
-    if (keys.up && canFly) p.spin = Math.min(PHYS.spinUp, p.spin + dt);
-    else                   p.spin = Math.max(0, p.spin - dt);
-    p.vy += PHYS.gravity * dt;
-    if (keys.up && canFly && p.spin >= PHYS.spinUp) {
-      p.thrusting = true;
-      p.vy -= PHYS.thrust * dt;
-      if (p.vy > 0) p.vy -= PHYS.brake * dt;
-    }
-    p.vy = Math.max(-PHYS.maxRise, Math.min(PHYS.maxFall, p.vy));
+  // --- Prop-pack: a short spin-up, then thrust (plus extra "brake" if you're falling) ---
+  if (keys.up) p.spin = Math.min(PHYS.spinUp, p.spin + dt);
+  else         p.spin = Math.max(0, p.spin - dt);
+  p.vy += PHYS.gravity * dt;
+  if (keys.up && p.spin >= PHYS.spinUp) {
+    p.vy -= PHYS.thrust * dt;
+    if (p.vy > 0) p.vy -= PHYS.brake * dt;
   }
-
-  // --- Bars: walk or fall under a bar and you grab it; Down lets go ---
-  p.hanging = false;
-  if (!onLadder && !p.thrusting && !keys.down && !(p.dropT > 0) && p.vy >= 0) {
-    for (let r = Math.floor((p.y - 12) / TILE); r <= Math.floor((p.y + 4) / TILE); r++) {
-      const line = r * TILE + 3;                     // the bar is drawn 3px below the tile top
-      if (tileAt(col, r) === '-' && p.y >= line - 4 && p.y <= line + 12) {
-        p.y = line - 1; p.vy = 0; p.hanging = true;
-        if (Math.abs(p.vx) > BAR_SPEED) p.vx = Math.sign(p.vx) * BAR_SPEED;
-        p.climbT = (p.climbT || 0) + (p.vx ? dt : 0);
-        break;
-      }
-    }
-  }
-  if (pressed.down && !onLadder) p.dropT = 0.3;      // let go of a bar
+  p.vy = Math.max(-PHYS.maxRise, Math.min(PHYS.maxFall, p.vy));
 
   if (moveX(p, p.vx * dt)) p.vx = 0;          // hit a wall: lose your speed
   p.onGround = false;
-  const feetBefore = p.y + PH;
   if (moveY(p, p.vy * dt)) { if (p.vy > 0) p.onGround = true; p.vy = 0; }
-  // The top of a ladder works as a floor you can stand on (press Down to climb down).
-  if (!onLadder && !keys.down && p.vy >= 0 && !p.onGround) {
-    const top = Math.floor((p.y + PH) / TILE) * TILE;
-    const r = top / TILE;
-    if (feetBefore <= top + 0.5 && p.y + PH >= top && tileAt(col, r) === 'H' && tileAt(col, r - 1) !== 'H') {
-      p.y = top - PH; p.vy = 0; p.onGround = true;
-    }
-  }
-  if (p.hanging) p.onGround = false;
   if (p.onGround) p.walkT += dt * Math.abs(p.vx) / 72;   // legs move faster at speed
-
-  // --- Digging (Lode Runner style): Z / X dig the dirt beside your feet, C digs ahead ---
-  if (p.digCool > 0) p.digCool -= dt;
-  if (p.onGround && !(p.digCool > 0)) {
-    if (pressed.digL || pressed.digR) {
-      const dir = pressed.digL ? -1 : 1, dc = col + dir, dr = feetRow + 1;
-      p.facing = dir;
-      // you can only dig dirt whose top is open (not under a wall, ladder or another tile)
-      if (isDirt(tileAt(dc, dr)) && !isSolid(tileAt(dc, dr - 1)) && tileAt(dc, dr - 1) !== 'H') { digHole(dc, dr); p.digCool = DIG_COOLDOWN; }
-      else { tone(160, 0.05, 'square', 0.03); p.digCool = 0.15; }
-    } else if (pressed.digF) {
-      const fc = col + p.facing;             // the column in front of you
-      let dug = false;
-      for (const r of [feetRow, feetRow - 1]) if (isDirt(tileAt(fc, r))) { digHole(fc, r); dug = true; }
-      if (!dug) tone(160, 0.05, 'square', 0.03);
-      p.digCool = DIG_COOLDOWN;
-    }
-  }
 
   if (touchesTile(p, 'L')) { killPlayer(); return; }
 
@@ -961,13 +755,14 @@ function updatePlaying(dt) {
   if (p.firing) fireLaser(dt);
 
   // --- Dynamite: drop it, then get clear! ---
-  if (pressed.down && p.onGround && !onLadder && tileAt(col, belowRow) !== 'H' && dynamiteLeft > 0 && !dynamite) {
+  if (pressed.down && p.onGround && dynamiteLeft > 0 && !dynamite) {
     dynamite = { x: p.x + PW / 2 - 2, y: p.y + PH - 9, fuse: FUSE };
     dynamiteLeft--;
     noiseBurst(0.12, 0.12); tone(220, 0.05, 'square', 0.04);   // strike + thunk as it's dropped
   }
   // Rotor wash: kick up dust when hovering just above the floor.
-  if (p.thrusting && Math.random() < 0.6) {
+  if (keys.up && p.spin > 0 && Math.random() < 0.6) {
+    const cx = p.x + PW / 2;
     for (let d = 0; d <= 22; d += 4) {
       const gy = p.y + PH + d;
       if (isSolid(tileAt(Math.floor(cx / TILE), Math.floor(gy / TILE)))) {
@@ -985,13 +780,9 @@ function updatePlaying(dt) {
     if (dynamite.fuse <= 0) { explode(); if (state !== 'playing') return; }
   }
 
-  // --- Dug holes count down and fill back in ---
-  updateHoles(dt);
-  if (state !== 'playing') return;
-
-  // --- Enemies (a rat trapped in a hole can't hurt you) ---
+  // --- Enemies ---
   for (const e of enemies) if (e.alive) updateEnemy(e, dt);
-  if (p.invuln <= 0) for (const e of enemies) if (e.alive && !e.trapped && overlap(p, e)) { killPlayer(); return; }
+  if (p.invuln <= 0) for (const e of enemies) if (e.alive && overlap(p, e)) { killPlayer(); return; }
 
   // --- Nuggets: bounce around and get collected ---
   updateNuggets(dt);
@@ -1084,41 +875,6 @@ function updateNuggets(dt) {
   nuggets = nuggets.filter(n => n.life > 0);
 }
 
-// ---- Digging -------------------------------------------------------------
-function digHole(c, r) {
-  const was = tileAt(c, r);
-  level.tiles[r][c] = '.'; mapVersion++;
-  holes.set(c + ',' + r, { c, r, t: HOLE_TIME });
-  const x = c * TILE + 8, y = r * TILE + 8;
-  for (let i = 0; i < 8; i++) addP({ type: 'debris', x: x + rnd(-5, 5), y: y + rnd(-6, 2), vx: rnd(-60, 60), vy: rnd(-120, -40),
-                                     life: rnd(0.5, 0.9), color: Math.random() < 0.5 ? DIRT.color : DIRT.dark, size: rnd(0.8, 1.6), rot: rnd(6), vr: rnd(-10, 10),
-                                     pts: [[1, 0], [0.3, 0.9], [-0.8, 0.6], [-0.8, -0.6], [0.3, -0.9]] });
-  smokePuffs(x, y - 4, 2, 4);
-  noiseBurst(0.14, 0.1); tone(110, 0.08, 'triangle', 0.06, 70);
-  if (was === '$') {                       // a gold pocket: nuggets pop up out of the hole
-    for (let i = 0; i < 2; i++) nuggets.push({ kind: 'g', x: c * TILE + rnd(2, 9), y: r * TILE + 4, w: 5, h: 4, age: 0,
-                                               vx: rnd(-40, 40), vy: rnd(-170, -120), life: NUGGET_LIFE, spin: rnd(6) });
-    burst(x, y, ORE.g.light, 10); tone(1500, 0.12, 'triangle', 0.06, 2400);
-  }
-}
-
-function updateHoles(dt) {
-  for (const [k, h] of holes) {
-    h.t -= dt;
-    if (h.t > 0) continue;
-    holes.delete(k);
-    const box = { x: h.c * TILE, y: h.r * TILE, w: TILE, h: TILE };
-    level.tiles[h.r][h.c] = 'd'; mapVersion++;
-    tone(90, 0.12, 'triangle', 0.05);
-    for (const e of enemies) if (e.alive && e.type === 'rat' && overlap(e, box)) {   // a trapped rat is buried
-      e.alive = false; addScore(PTS_RAT); burst(e.x + 6, h.r * TILE + 2, '#c8c0b0', 8);
-      addP({ type: 'text', x: e.x + 6, y: h.r * TILE - 6, vy: -22, life: 0.9, text: '+' + PTS_RAT, color: '#ffffff' });
-    }
-    for (const n of nuggets) if (overlap(n, box)) { n.y = h.r * TILE - n.h - 0.5; n.vy = -60; }   // pop nuggets out
-    if (overlap(player, box)) { killPlayer(); return; }   // crushed!
-  }
-}
-
 // Destroy the whole connected breakable wall (flood fill), not just one tile.
 function destroyWall(c, r, ox, oy) {   // (ox, oy) = where the blast came from, if any
   const stack = [[c, r]]; let n = 0;
@@ -1152,8 +908,6 @@ function explode() {
     if (tileAt(c, r) === 'W' && Math.hypot(c * TILE + 8 - cx, r * TILE + 8 - cy) <= BLAST_RADIUS) destroyWall(c, r, cx, cy);
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++)
     if (ORE[tileAt(c, r)] && Math.hypot(c * TILE + 8 - cx, r * TILE + 8 - cy) <= BLAST_RADIUS) mineOre(c, r, cx, cy);
-  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++)   // dynamite blows dirt away for good
-    if (isDirt(tileAt(c, r)) && Math.hypot(c * TILE + 8 - cx, r * TILE + 8 - cy) <= BLAST_RADIUS) { digHole(c, r); holes.delete(c + ',' + r); }
   for (const n of nuggets) { const d = Math.hypot(n.x - cx, n.y - cy) || 1; if (d < BLAST_RADIUS) { n.vx += (n.x - cx) / d * 120; n.vy -= 120; } }
   for (const e of enemies) if (e.alive) { const ec = center(e); if (Math.hypot(ec.x - cx, ec.y - cy) < BLAST_RADIUS + 6) killEnemy(e); }
   blasting = false;
@@ -1171,27 +925,6 @@ function updateEnemy(e, dt) {
     e.y += e.dir * e.speed * dt;
     if (e.y > e.bottom) { e.y = e.bottom; e.dir = -1; }
     if (e.y < e.top)    { e.y = e.top;    e.dir = 1; }
-  } else if (e.type === 'rat') {        // walks the floors, turns at walls and edges, falls into holes
-    e.vy = Math.min(e.vy + 500 * dt, 220);
-    e.onGround = false;
-    if (moveY(e, e.vy * dt)) { if (e.vy > 0) e.onGround = true; e.vy = 0; }
-    // inside a hole: the hole's floor holds it – trapped until the hole refills
-    const hk = Math.floor((e.x + e.w / 2) / TILE) + ',' + Math.floor((e.y + e.h / 2) / TILE);
-    const hole = holes.get(hk);
-    if (hole) {
-      const bottom = (hole.r + 1) * TILE - e.h;
-      if (e.y >= bottom) { e.y = bottom; e.vy = 0; e.onGround = true; }
-      e.trapped = true;
-    } else e.trapped = false;
-    if (!e.trapped && e.onGround) {
-      const ahead = e.vx > 0 ? e.x + e.w + 1 : e.x - 1, ac = Math.floor(ahead / TILE);
-      const footRow = Math.floor((e.y + e.h - 1) / TILE);
-      const wall = isSolid(tileAt(ac, footRow));
-      const under = tileAt(ac, footRow + 1);
-      const holeAhead = holes.has(ac + ',' + (footRow + 1));
-      if (wall || under === 'L' || (!isSolid(under) && !holeAhead)) e.vx = -e.vx;
-      else moveX(e, e.vx * dt);
-    }
   } else if (e.type === 'moth') {       // flutters in a figure-of-eight
     e.x = e.homeX + Math.sin(e.t * 1.6) * 22;
     e.y = e.homeY + Math.sin(e.t * 2.7) * 10;
@@ -1294,12 +1027,11 @@ function step(dt) {
   globalT += dt;
   if (pressed.mute) muted = !muted;
   if (pressed.gfx) { HD = !HD; applyGfxMode(); }
-  if (jumpToLevel !== null) { const n = jumpToLevel; jumpToLevel = null; startGame(n); }
   if (state === 'title') {
     if (pressed.start || pressed.fire) startGame();
   } else if (state === 'playing') {
     if (pressed.pause) paused = !paused;
-    if (!paused) { updatePlaying(dt); if (introT > 0) introT -= dt; }
+    if (!paused) updatePlaying(dt);
   } else if (state === 'dying') {
     updateDying(dt);
   } else if (state === 'levelDone') {
@@ -1326,17 +1058,7 @@ function drawTiles() {
   const c0 = roomX * ROOM_COLS, r0 = roomY * ROOM_ROWS;
   for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++) {
     const t = tileAt(c, r), x = c * TILE, y = r * TILE;
-    if (isDirt(t) && !lightsOut) {          // soft dirt: speckled brown (with gold flecks for a pocket)
-      rect(x, y, TILE, TILE, DIRT.color);
-      for (let i = 0; i < 6; i++) rect(x + Math.floor(hash(c, r, i) * 14), y + Math.floor(hash(c, r, i + 7) * 14), 2, 2, i % 2 ? DIRT.dark : DIRT.light);
-      if (!isSolid(tileAt(c, r - 1))) rect(x, y, TILE, 1, DIRT.light);
-      if (t === '$') for (let i = 0; i < 3; i++) rect(x + 3 + Math.floor(hash(c, r, i + 30) * 9), y + 4 + Math.floor(hash(c, r, i + 40) * 9), 2, 2, ((globalT * 1.5 + i * 0.3) % 1) < 0.1 ? '#fff' : '#ffd23a');
-    } else if (t === 'H' && !lightsOut) {   // ladder
-      rect(x + 3, y, 2, TILE, '#c89a50'); rect(x + 11, y, 2, TILE, '#c89a50');
-      rect(x + 3, y + 3, 10, 2, '#a07838'); rect(x + 3, y + 11, 10, 2, '#a07838');
-    } else if (t === '-' && !lightsOut) {   // hand-over-hand bar
-      rect(x, y + 2, TILE, 2, '#c8b080');
-    } else if (t === '#' && !lightsOut) {
+    if (t === '#' && !lightsOut) {
       rect(x, y, TILE, TILE, d.rock);
       rect(x, y + ((r % 2) ? 4 : 11), TILE, 2, d.dark);        // horizontal rock bands
       if (!isSolid(tileAt(c, r - 1))) rect(x, y, TILE, 2, d.light); // lit top edge
@@ -1402,27 +1124,12 @@ function laserSegments() {
   return segs;
 }
 
-// Seen from behind, facing the ladder: helmet, backpack in the middle, arms and legs alternating.
-function drawHeroBack(x, y, phase) {
-  x = Math.round(x); y = Math.round(y);
-  rect(x + 1, y - 3, 8, 1, '#e8e8e8'); rect(x + 4, y - 3, 2, 3, '#c8c8c8');    // folded rotor
-  rect(phase ? x - 1 : x, phase ? y - 4 : y - 1, 2, 9, '#d04020');              // left arm up
-  rect(phase ? x + 9 : x + 8, phase ? y - 1 : y - 4, 2, 9, '#d04020');          // right arm up
-  rect(x + 1, y, 8, 5, '#f0d030');                                              // helmet (back)
-  rect(x + 3, y + 5, 4, 3, '#6a4020');                                          // back of head
-  rect(x + 2, y + 8, 6, 8, '#d04020');                                          // body
-  rect(x + 3, y + 8, 4, 7, '#909090');                                          // backpack
-  rect(x + 2, y + (phase ? 15 : 16), 2, 6, '#3050c0');                          // legs
-  rect(x + 6, y + (phase ? 16 : 15), 2, 6, '#3050c0');
-}
-
 function drawPlayer() {
   const p = player;
   if (state === 'dying' && Math.floor(globalT * 12) % 2) return;
   if (state === 'playing' && p.invuln > 0 && Math.floor(globalT * 20) % 2) return;
   const walking = p.onGround && Math.abs(p.vx) > 5 ? Math.floor(p.walkT * 10) % 2 : 0;
-  if (p.climbing) drawHeroBack(p.x, p.y, Math.floor((p.climbT || 0) * 8) % 2);
-  else drawHero(p.x, p.y, p.facing, p.spin > 0 || !p.onGround, !p.onGround, walking);
+  drawHero(p.x, p.y, p.facing, p.spin > 0 || !p.onGround, !p.onGround, walking);
   if (p.firing && state === 'playing') {
     const col = laserPulse() > 0.35 ? '#ffffff' : '#ff50ff';   // flickers white/magenta
     for (const [a, b] of laserSegments()) rect(Math.min(a, b), p.y + 4, Math.max(1, Math.round(Math.abs(b - a))), 2, col);
@@ -1433,14 +1140,6 @@ function drawEnemies() {
   for (const e of enemies) {
     if (!e.alive) continue;
     const x = Math.round(e.x), y = Math.round(e.y), flap = Math.floor(e.t * 10) % 2;
-    if (e.type === 'rat') {
-      const f = e.vx >= 0 ? 1 : -1, bx = f > 0 ? x : x + 2;
-      rect(bx, y + 2, 10, 5, '#9a9088'); rect(f > 0 ? x + 9 : x, y + 1, 3, 4, '#b0a69c');
-      rect(f > 0 ? x + 10 : x + 1, y + 2, 1, 1, '#000');
-      rect(f > 0 ? x - 3 : x + 12, y + 4, 3, 1, '#d89090');           // tail
-      if (!e.trapped && flap) { rect(x + 2, y + 6, 2, 1, '#706860'); rect(x + 7, y + 6, 2, 1, '#706860'); }
-      continue;
-    }
     if (e.type === 'bat') {
       rect(x + 5, y + 2, 4, 4, '#b050d0');
       rect(x + 6, y + 3, 1, 1, '#ff2020'); rect(x + 8, y + 3, 1, 1, '#ff2020');
@@ -1485,13 +1184,6 @@ function drawDynamite() {
   if (Math.floor(globalT * 20) % 2) rect(dynamite.x, dynamite.y - 4, 3, 2, '#ffff60');
 }
 
-function drawHoleRefill() {   // dirt sliding back into holes that are about to close
-  for (const h of holes.values()) if (h.t < HOLE_REFILL) {
-    const k = 1 - h.t / HOLE_REFILL, hh = Math.round(TILE * k);
-    rect(h.c * TILE, h.r * TILE + TILE - hh, TILE, hh, DIRT.color);
-    rect(h.c * TILE, h.r * TILE + TILE - hh, TILE, 1, DIRT.light);
-  }
-}
 function drawNuggets() {
   for (const n of nuggets) {
     if (n.life < 3 && Math.floor(globalT * 8) % 2) continue;      // blink before vanishing
@@ -1516,30 +1208,21 @@ function drawParticles() {   // classic: everything is a 2x2 pixel, no smoke/rin
 function drawHUD() {
   const y = VIEW_H;
   rect(0, y, SCREEN_W, SCREEN_H - y, '#181818');
-  if (LEVELS[levelIndex].noProp) text('FIREDAMP: PROP-PACK OFF', 150, y + 3, '#ff6040', 8);
   // power bar
   text('POWER', 4, y + 3, '#aaa');
   rect(36, y + 3, 102, 7, '#333');
   rect(37, y + 4, Math.max(0, power), 5, power > 30 ? '#40e040' : (Math.floor(globalT * 6) % 2 ? '#ff4040' : '#802020'));
-  text('LEVEL ' + (levelIndex + 1), SCREEN_W - 4, y + 3, '#aaa', 8, 'right');
+  text('LEVEL ' + (levelIndex + 1), 316, y + 3, '#aaa', 8, 'right');
   // spare lives (little helmets) and dynamite sticks
   for (let i = 0; i < Math.min(lives, 8); i++) { rect(4 + i * 9, y + 15, 7, 4, '#f0d030'); rect(5 + i * 9, y + 19, 5, 3, '#d04020'); }
   for (let i = 0; i < dynamiteLeft; i++) rect(90 + i * 6, y + 14, 3, 8, '#e02020');
   text('$' + money, 140, y + 14, '#ffd23a', 8);
-  text(String(score).padStart(6, '0'), SCREEN_W - 4, y + 14, '#fff', 8, 'right');
+  text(String(score).padStart(6, '0'), 316, y + 14, '#fff', 8, 'right');
 }
 
-// The title screens are laid out on a 320x200 "card" that's scaled up to fill the screen.
-function titleCard(draw, bg) {
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  const k = Math.min(SCREEN_W / 320, SCREEN_H / 200);
-  ctx.save(); ctx.translate((SCREEN_W - 320 * k) / 2, (SCREEN_H - 200 * k) / 2); ctx.scale(k, k);
-  draw(); ctx.restore();
-}
-function drawTitle() { titleCard(drawTitleCard, '#000'); }
-function drawTitleCard() {
-  rect(0, 0, 320, 200, '#000');
-  for (let i = -2; i < 22; i++) rect(i * 16, 168, 16, 16, i % 2 ? '#b86a2c' : '#a05a20');
+function drawTitle() {
+  rect(0, 0, SCREEN_W, SCREEN_H, '#000');
+  for (let i = 0; i < 20; i++) rect(i * 16, 168, 16, 16, i % 2 ? '#b86a2c' : '#a05a20');
   text('PROP-PACK', 160, 22, '#f0d030', 20, 'center');
   text('RESCUE', 160, 44, '#ff6030', 20, 'center');
   text('a remake inspired by Activision\'s H.E.R.O. (1984)', 160, 70, '#888', 8, 'center');
@@ -1548,14 +1231,13 @@ function drawTitleCard() {
   text('Fly down the mine shafts and reach the trapped miner.', 160, 126, '#ccc', 8, 'center');
   text('Watch your POWER. Mind the lava. Don\'t blow yourself up.', 160, 137, '#ccc', 8, 'center');
   if (Math.floor(globalT * 2) % 2) text('CLICK OR PRESS ENTER TO START', 160, 152, '#fff', 8, 'center');
-  text('TESTING: press 1-' + LEVELS.length + ' to jump to a level', 160, 162, '#ff9a60', 7, 'center');
   text('HI ' + String(hiScore).padStart(6, '0'), 160, 188, '#f0d030', 8, 'center');
 }
 
-function centerBanner(lines, yTop, width = 260) {
-  const h = lines.length * 12 + 10, y = yTop === undefined ? (VIEW_H - h) / 2 : yTop;
-  ctx.globalAlpha = 0.8; rect((SCREEN_W - width) / 2, y, width, h, '#000'); ctx.globalAlpha = 1;
-  lines.forEach(([s, col], i) => text(s, SCREEN_W / 2, y + 6 + i * 12, col || '#fff', 8, 'center'));
+function centerBanner(lines) {
+  const h = lines.length * 12 + 10, y = (VIEW_H - h) / 2;
+  ctx.globalAlpha = 0.8; rect(40, y, 240, h, '#000'); ctx.globalAlpha = 1;
+  lines.forEach(([s, col], i) => text(s, 160, y + 6 + i * 12, col || '#fff', 8, 'center'));
 }
 
 // =====================================================================
@@ -1606,7 +1288,7 @@ function paintRoomHD() {
   const bg = g.createLinearGradient(0, y0, 0, y0 + VIEW_H);
   bg.addColorStop(0, d.bgTop); bg.addColorStop(1, d.bgBot);
   g.fillStyle = bg; g.fillRect(x0, y0, VIEW_W, VIEW_H);
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < 70; i++) {
     const hx = hash(roomX + L, roomY, i), hy = hash(roomX + L, roomY, i + 100);
     g.fillStyle = hash(roomX, roomY + L, i + 200) > 0.5 ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.14)';
     g.beginPath(); g.ellipse(x0 + hx * VIEW_W, y0 + hy * VIEW_H, 4 + hash(i, L, 3) * 10, 2 + hash(i, L, 4) * 6, hash(i, L, 5) * 3, 0, Math.PI * 2); g.fill();
@@ -1676,62 +1358,6 @@ function paintRoomHD() {
     }
   }
 
-  // 3c. Soft dirt: crumbly, lighter than rock, with pebbles (and gold flecks in a pocket)
-  for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++) {
-    const t = tileAt(c, r); if (!isDirt(t)) continue;
-    const x = c * TILE, y = r * TILE;
-    const gr = g.createLinearGradient(0, y, 0, y + TILE);
-    gr.addColorStop(0, shade(DIRT.color, 0.08)); gr.addColorStop(1, shade(DIRT.color, -0.2));
-    g.fillStyle = gr; g.fillRect(x, y, TILE, TILE);
-    for (let i = 0; i < 14; i++) {              // grains
-      g.fillStyle = hash(c, r, i + 700) > 0.5 ? 'rgba(255,220,170,0.18)' : 'rgba(30,15,5,0.3)';
-      g.fillRect(x + hash(c, r, i + 710) * 15, y + hash(c, r, i + 720) * 15, 0.9, 0.9);
-    }
-    for (let i = 0; i < 3; i++) {               // pebbles
-      g.fillStyle = shade('#8a8278', (hash(c, r, i + 730) - 0.5) * 0.5);
-      g.beginPath(); g.ellipse(x + 2 + hash(c, r, i + 740) * 12, y + 2 + hash(c, r, i + 750) * 12, 1 + hash(c, r, i + 760), 0.8, hash(c, r, i), 0, Math.PI * 2); g.fill();
-    }
-    if (hash(c, r, 770) < 0.3) {                // a little root
-      g.strokeStyle = 'rgba(60,35,15,0.6)'; g.lineWidth = 0.4; g.beginPath();
-      g.moveTo(x + hash(c, r, 771) * 16, y); g.quadraticCurveTo(x + 8, y + 6, x + hash(c, r, 772) * 16, y + 10); g.stroke();
-    }
-    if (!isSolid(tileAt(c, r - 1))) {           // crumbly top edge
-      g.fillStyle = DIRT.light;
-      for (let i = 0; i < 6; i++) g.fillRect(x + i * 2.7, y - 0.2 + hash(c, r, i + 780) * 0.8, 2.2, 1.1);
-    }
-    if (t === '$') {                             // gold pocket
-      for (let i = 0; i < 4; i++) {
-        const nx = x + 3 + hash(c, r, i + 790) * 10, ny = y + 4 + hash(c, r, i + 800) * 9, sz = 1 + hash(c, r, i + 810) * 1.2;
-        const ng = g.createRadialGradient(nx - 0.4, ny - 0.4, 0.1, nx, ny, sz * 1.3);
-        ng.addColorStop(0, ORE.g.light); ng.addColorStop(0.5, ORE.g.color); ng.addColorStop(1, ORE.g.dark);
-        g.fillStyle = ng; g.beginPath(); g.arc(nx, ny, sz, 0, Math.PI * 2); g.fill();
-      }
-    }
-  }
-
-  // 3d. Ladders (wooden rails and rungs) and hand-over-hand bars (rope)
-  for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++) {
-    const t = tileAt(c, r), x = c * TILE, y = r * TILE;
-    if (t === 'H') {
-      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 3.6, y, 1.8, TILE); g.fillRect(x + 11.6, y, 1.8, TILE);   // shadow
-      for (const rx of [3, 11]) {
-        const wg = g.createLinearGradient(x + rx, 0, x + rx + 2, 0);
-        wg.addColorStop(0, '#8a6430'); wg.addColorStop(0.5, '#d8a860'); wg.addColorStop(1, '#7a5428');
-        g.fillStyle = wg; g.fillRect(x + rx, y, 2, TILE);
-      }
-      for (const ry of [3.5, 11.5]) {
-        g.fillStyle = '#b88a48'; g.fillRect(x + 4.5, y + ry, 7, 1.5);
-        g.fillStyle = 'rgba(255,240,200,0.35)'; g.fillRect(x + 4.5, y + ry, 7, 0.4);
-        g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + 4.5, y + ry + 1.5, 7, 0.5);
-      }
-    } else if (t === '-') {
-      g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, y + 4); g.lineTo(x + TILE, y + 4); g.stroke();
-      g.strokeStyle = '#c8aa78'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y + 3); g.lineTo(x + TILE, y + 3); g.stroke();
-      g.strokeStyle = 'rgba(90,60,30,0.7)'; g.lineWidth = 0.35;           // twisted rope fibres
-      for (let i = 0; i < 8; i++) { g.beginPath(); g.moveTo(x + i * 2, y + 2.5); g.lineTo(x + i * 2 + 1.4, y + 3.6); g.stroke(); }
-    }
-  }
-
   // 4. Breakable walls: shaded bricks with mortar
   for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++) {
     if (tileAt(c, r) !== 'W') continue;
@@ -1796,25 +1422,11 @@ function drawWallDamageHD(g) {
   }
 }
 
-function drawHoleRefillHD(g) {
-  for (const h of holes.values()) {
-    const x = h.c * TILE, y = h.r * TILE;
-    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, y, TILE, TILE);     // fresh hole is a little darker
-    if (h.t < HOLE_REFILL) {
-      const k = 1 - h.t / HOLE_REFILL, hh = TILE * k;
-      const gr = g.createLinearGradient(0, y + TILE - hh, 0, y + TILE);
-      gr.addColorStop(0, DIRT.light); gr.addColorStop(0.2, DIRT.color); gr.addColorStop(1, DIRT.dark);
-      g.fillStyle = gr; g.fillRect(x, y + TILE - hh, TILE, hh);
-      if (Math.random() < 0.3) addP({ type: 'dust', x: x + rnd(2, 14), y: y + TILE - hh, vx: rnd(-10, 10), vy: rnd(-8, 0), life: 0.4, size: 1, grow: 4 });
-    }
-  }
-}
-
 function drawOreSparkleHD(g) {   // twinkling star glints on ore veins
   const c0 = roomX * ROOM_COLS, r0 = roomY * ROOM_ROWS;
   g.globalCompositeOperation = 'lighter';
   for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++) {
-    const tt = tileAt(c, r), ore = ORE[tt] || (tt === '$' ? ORE.g : null); if (!ore) continue;
+    const ore = ORE[tileAt(c, r)]; if (!ore) continue;
     if (ore.name === 'gold') glow(g, c * TILE + 8, r * TILE + 8, 12, 'rgba(255,200,60,0.10)');
     for (let i = 0; i < 2; i++) {
       const ph = (globalT * 0.6 + hash(c, r, i + 600)) % 1;
@@ -1875,7 +1487,7 @@ function drawLegHD(g, ox, ang, color) {
 function drawHeroHD(g, x, y, f, o) {
   g.save();
   g.translate(x + PW / 2, y + PH); g.scale(f, 1); g.rotate(o.lean || 0);
-  const swing = o.climb ? Math.sin(o.walkT * 12) * 0.45 : o.inAir ? 0 : Math.sin(o.walkT * 14) * 0.6 * Math.min(1, Math.abs(o.vx) / 40);
+  const swing = o.inAir ? 0 : Math.sin(o.walkT * 14) * 0.6 * Math.min(1, Math.abs(o.vx) / 40);
 
   // backpack + rotor mast
   const bp = g.createLinearGradient(-6.5, 0, -2.5, 0); bp.addColorStop(0, '#59606b'); bp.addColorStop(1, '#a3abb8');
@@ -1884,8 +1496,8 @@ function drawHeroHD(g, x, y, f, o) {
   g.strokeStyle = '#b8bec8'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(-4.4, -15.6); g.lineTo(-1.2, -24.4); g.stroke();
 
   // legs (back leg first, a bit darker)
-  drawLegHD(g, -0.9, o.inAir && !o.climb ? 0.45 : swing, '#24409a');
-  drawLegHD(g, 0.9, o.inAir && !o.climb ? 0.2 : -swing, '#2f55c4');
+  drawLegHD(g, -0.9, o.inAir ? 0.45 : swing, '#24409a');
+  drawLegHD(g, 0.9, o.inAir ? 0.2 : -swing, '#2f55c4');
 
   // torso
   const tg = g.createLinearGradient(-3.3, 0, 3.4, 0);
@@ -1896,9 +1508,7 @@ function drawHeroHD(g, x, y, f, o) {
 
   // arm: straight out when firing the laser, swinging otherwise
   g.fillStyle = '#c63c1c';
-  if (o.climb) {
-    // arms are drawn after the helmet (below) so the hands show above it
-  } else if (o.firing) { rr(g, 0.4, -13.8, 5.2, 2.3, 1); g.fill(); g.fillStyle = '#f2b98c'; g.beginPath(); g.arc(5.8, -12.65, 1.15, 0, Math.PI * 2); g.fill(); }
+  if (o.firing) { rr(g, 0.4, -13.8, 5.2, 2.3, 1); g.fill(); g.fillStyle = '#f2b98c'; g.beginPath(); g.arc(5.8, -12.65, 1.15, 0, Math.PI * 2); g.fill(); }
   else {
     g.save(); g.translate(0.9, -14); g.rotate(-swing * 0.7 + (o.inAir ? -0.6 : 0.1));
     rr(g, -1.1, 0, 2.3, 5.2, 1); g.fill();
@@ -1919,15 +1529,6 @@ function drawHeroHD(g, x, y, f, o) {
   g.fillStyle = 'rgba(255,255,255,0.65)'; g.beginPath(); g.ellipse(-0.7, -21.3, 1.4, 0.6, -0.4, 0, Math.PI * 2); g.fill();
   g.fillStyle = '#fffbe0'; g.beginPath(); g.arc(4.5, -19.9, 0.95, 0, Math.PI * 2); g.fill();
 
-  if (o.climb) {                      // both arms reaching up past the helmet (ladder rung or rope)
-    for (const ph of [1, -1]) {
-      g.save(); g.translate(ph > 0 ? 3.9 : -3.1, -14.4); g.rotate(Math.PI + 0.2 * ph + swing * ph * 0.4);   // angled outward, beside the helmet
-      g.fillStyle = ph > 0 ? '#c63c1c' : '#a83018'; rr(g, -1.1, 0, 2.3, 7.6, 1); g.fill();
-      g.fillStyle = '#f2b98c'; g.beginPath(); g.arc(0.05, 8.2, 1.15, 0, Math.PI * 2); g.fill();
-      g.restore();
-    }
-  }
-
   // rotor: a blurred disc plus one visible blade when spinning
   g.fillStyle = '#d0d0d0'; g.beginPath(); g.arc(-1.2, -24.6, 0.8, 0, Math.PI * 2); g.fill();
   if (o.spin > 0.05) {
@@ -1943,63 +1544,17 @@ function drawHeroHD(g, x, y, f, o) {
   g.restore();
 }
 
-// The hero from behind, climbing a ladder. Drawn around his feet like drawHeroHD.
-function drawHeroBackHD(g, x, y, t) {
-  const step = Math.sin(t * 12);              // alternating climb rhythm
-  g.save(); g.translate(x + PW / 2, y + PH);
-  // legs: one reaching up to the next rung while the other pushes down
-  for (const [lx, ph] of [[-1.7, 1], [1.7, -1]]) {
-    const lift = Math.max(0, step * ph) * 2.2;
-    g.fillStyle = ph > 0 ? '#2b4ab8' : '#24409a'; rr(g, lx - 1.2, -7.6 - lift, 2.4, 5.6, 1); g.fill();
-    g.fillStyle = '#4a2a12'; rr(g, lx - 1.5, -2.4 - lift, 3, 2.4, 0.8); g.fill();
-  }
-  // torso
-  const tg = g.createLinearGradient(-3.6, 0, 3.6, 0);
-  tg.addColorStop(0, '#a3301a'); tg.addColorStop(0.5, '#e05024'); tg.addColorStop(1, '#a3301a');
-  g.fillStyle = tg; rr(g, -3.7, -15.6, 7.4, 8.9, 1.6); g.fill();
-  g.fillStyle = '#3a2414'; g.fillRect(-3.7, -8.7, 7.4, 1.3);
-  // backpack in the middle of his back, with straps
-  g.fillStyle = '#3d424a'; g.fillRect(-3, -15.4, 0.8, 7.5); g.fillRect(2.2, -15.4, 0.8, 7.5);
-  const bp = g.createLinearGradient(-2.6, 0, 2.6, 0); bp.addColorStop(0, '#59606b'); bp.addColorStop(0.5, '#a3abb8'); bp.addColorStop(1, '#59606b');
-  g.fillStyle = bp; rr(g, -2.5, -15.2, 5, 7.4, 1.2); g.fill();
-  g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(-2, -14.8, 4, 0.6);
-  // back of the head and helmet
-  g.fillStyle = '#6a4020'; g.beginPath(); g.ellipse(0, -17.3, 2.6, 2.3, 0, 0, Math.PI * 2); g.fill();
-  const hg = g.createLinearGradient(0, -23, 0, -17.6); hg.addColorStop(0, '#fff48a'); hg.addColorStop(1, '#d6a516');
-  g.fillStyle = hg; g.beginPath(); g.arc(0, -18.6, 4, Math.PI, 0); g.closePath(); g.fill();
-  g.fillStyle = '#b88a0c'; rr(g, -4.3, -19, 8.6, 1.15, 0.5); g.fill();
-  g.fillStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.ellipse(-1.4, -21.2, 1.3, 0.55, -0.3, 0, Math.PI * 2); g.fill();
-  // rotor mast from the backpack, blades folded flat
-  g.strokeStyle = '#b8bec8'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(0, -15.2); g.lineTo(0, -24.4); g.stroke();
-  g.strokeStyle = '#e8ecf2'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(-6, -24.7); g.lineTo(6, -24.7); g.stroke();
-  g.fillStyle = '#d0d0d0'; g.beginPath(); g.arc(0, -24.6, 0.8, 0, Math.PI * 2); g.fill();
-  // arms reaching up beside the helmet (drawn last so the hands show), alternating which is higher
-  for (const [ax, ph] of [[-4.3, 1], [4.3, -1]]) {
-    const reach = 7.5 + Math.max(0, step * ph) * 2.2;
-    g.save(); g.translate(ax, -14.4); g.rotate(Math.PI + (ax < 0 ? -0.08 : 0.08));
-    g.fillStyle = '#c63c1c'; rr(g, -1.15, 0, 2.3, reach, 1); g.fill();
-    g.fillStyle = '#f2b98c'; g.beginPath(); g.arc(0, reach + 0.5, 1.2, 0, Math.PI * 2); g.fill();
-    g.restore();
-  }
-  g.restore();
-}
-
 function lampPos() { const p = player; return { x: p.x + PW / 2 + p.facing * 4.5, y: p.y + PH - 19.9 }; }
 
 function drawPlayerHD(g) {
   const p = player;
   const hidden = (state === 'dying' && Math.floor(globalT * 12) % 2) ||
                  (state === 'playing' && p.invuln > 0 && Math.floor(globalT * 20) % 2);
-  const climb = p.onLadder || p.hanging;
-  const inAir = !p.onGround && !climb;
-  const lean = climb ? 0 : Math.max(-1, Math.min(1, p.vx * p.facing / PHYS.maxSpeed)) * (inAir ? 0.16 : 0.05);
-  const canFly = !LEVELS[levelIndex].noProp;
-  const spin = canFly ? Math.max(Math.min(1, p.spin / Math.max(0.01, PHYS.spinUp)), inAir ? 0.35 : 0) : 0;
+  const inAir = !p.onGround;
+  const lean = Math.max(-1, Math.min(1, p.vx * p.facing / PHYS.maxSpeed)) * (inAir ? 0.16 : 0.05);
+  const spin = Math.max(Math.min(1, p.spin / Math.max(0.01, PHYS.spinUp)), inAir ? 0.35 : 0);
   const firing = p.firing && state === 'playing';
-  if (!hidden) {
-    if (p.climbing) drawHeroBackHD(g, p.x, p.y, p.climbT || 0);        // facing the ladder
-    else drawHeroHD(g, p.x, p.y, p.facing, { spin, inAir, climb, walkT: climb ? (p.climbT || 0) : p.walkT, vx: p.vx, firing: firing && !climb, lean });
-  }
+  if (!hidden) drawHeroHD(g, p.x, p.y, p.facing, { spin, inAir, walkT: p.walkT, vx: p.vx, firing, lean });
   if (firing) {   // glowing segmented beam: each dash drawn in three passes, wide/soft to thin/hot
     const x1 = p.beamEnd, y = p.y + 5 + Math.sin(globalT * 90) * 0.25, segs = laserSegments();
     const pulse = 0.8 + 0.45 * laserPulse();   // beam shimmers while firing
@@ -2019,24 +1574,6 @@ function drawEnemiesHD(g) {
   for (const e of enemies) {
     if (!e.alive) continue;
     const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
-    if (e.type === 'rat') {
-      const f = e.vx >= 0 ? 1 : -1, jig = e.trapped ? Math.sin(e.t * 40) * 0.6 : 0, step = Math.sin(e.t * 18);
-      g.save(); g.translate(cx + jig, e.y + e.h); g.scale(f, 1);
-      g.strokeStyle = '#d89a9a'; g.lineWidth = 0.7; g.beginPath();            // tail
-      g.moveTo(-5, -2.5); g.quadraticCurveTo(-9, -1 + step, -11, -4); g.stroke();
-      g.fillStyle = '#6a625a';                                                // legs
-      if (!e.trapped) { g.fillRect(-3 + step, -1.2, 1.2, 1.2); g.fillRect(2 - step, -1.2, 1.2, 1.2); }
-      const bg = g.createRadialGradient(-1, -5, 0.5, 0, -3.5, 6);
-      bg.addColorStop(0, '#c8beb4'); bg.addColorStop(1, '#6e665e');
-      g.fillStyle = bg; g.beginPath(); g.ellipse(-0.5, -3.4, 5.4, 3.1, 0, 0, Math.PI * 2); g.fill();   // body
-      g.beginPath(); g.moveTo(3.5, -5.5); g.quadraticCurveTo(7.8, -3.6, 6.8, -2); g.lineTo(3, -1.5); g.fill();  // snout
-      g.fillStyle = '#e8a8a8'; g.beginPath(); g.arc(3, -6.2, 1.3, 0, Math.PI * 2); g.fill();        // ear
-      g.fillStyle = '#1a1010'; g.beginPath(); g.arc(5, -4.3, 0.55, 0, Math.PI * 2); g.fill();       // eye
-      g.fillStyle = '#e88a8a'; g.beginPath(); g.arc(7.1, -2.4, 0.5, 0, Math.PI * 2); g.fill();      // nose
-      g.restore();
-      if (e.trapped) text('!', cx, e.y - 9, '#ffd23a', 7, 'center');
-      continue;
-    }
     if (e.type === 'bat') {
       const a = Math.sin(e.t * 18);
       g.save(); g.translate(cx, cy);
@@ -2210,7 +1747,7 @@ function drawGlowsHD(g) {   // soft coloured light from lava, lanterns, the helm
   for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++)
     if (tileAt(c, r) === 'L') glow(g, c * TILE + 8, r * TILE + 8, 26, `rgba(255,90,20,${0.16 + 0.05 * Math.sin(globalT * 3 + c)})`);
   for (const l of lanterns) if (l.lit) glow(g, l.x + 4, l.y + 7, 46 + Math.sin(globalT * 13) * 1.5, 'rgba(255,185,90,0.28)');
-  if ((state === 'playing' || state === 'levelDone') && !player.climbing) { const lp = lampPos(); glow(g, lp.x, lp.y, 9, 'rgba(255,250,210,0.35)'); }
+  if (state === 'playing' || state === 'levelDone') { const lp = lampPos(); glow(g, lp.x, lp.y, 9, 'rgba(255,250,210,0.35)'); }
   for (const q of particles) if (q.type === 'light') {
     const k = q.life / q.max;
     glow(g, q.x, q.y, q.size * (0.6 + 0.4 * (1 - k)), `rgba(255,190,110,${0.75 * k})`);
@@ -2251,7 +1788,6 @@ function drawWorldHD() {
   drawScorchesHD(g);
   drawLavaHD(g);
   drawWallDamageHD(g);
-  drawHoleRefillHD(g);
   drawOreSparkleHD(g);
   drawLanternsHD(g); drawMinerHD(g); drawEnemiesHD(g); drawDynamiteHD(g);
   drawNuggetsHD(g);
@@ -2277,8 +1813,7 @@ function drawHUDHD() {
     rr(g, 34.5, y + 4.5, 103 * frac, 4.5, 1.5); g.fill();
     g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(35.5, y + 4.8, Math.max(0, 103 * frac - 2), 1.2);
   }
-  if (LEVELS[levelIndex].noProp) text('FIREDAMP: PROP-PACK OFF', 150, y + 3.5, Math.floor(globalT * 2) % 2 ? '#ff7050' : '#c04030', 6.5);
-  text('LEVEL ' + (levelIndex + 1) + '  ·  ENHANCED [G]', SCREEN_W - 4, y + 3.5, '#9a9aa8', 6.5, 'right');
+  text('LEVEL ' + (levelIndex + 1) + '  ·  ENHANCED [G]', 316, y + 3.5, '#9a9aa8', 6.5, 'right');
   for (let i = 0; i < Math.min(lives, 8); i++) {   // spare heroes as little helmets
     const hx = 9 + i * 10, hy = y + 20;
     const hg = g.createLinearGradient(0, hy - 4, 0, hy); hg.addColorStop(0, '#fff48a'); hg.addColorStop(1, '#d6a516');
@@ -2298,20 +1833,19 @@ function drawHUDHD() {
   text('$', 146, y + 14.7, '#7a5200', 5.5, 'center');
   text(money.toLocaleString('en-US'), 152, y + 13.5, '#ffd23a', 9);
   g.shadowColor = 'rgba(255,200,80,0.6)'; g.shadowBlur = 8;
-  text(String(score).padStart(6, '0'), SCREEN_W - 4, y + 12.5, '#ffffff', 10, 'right');
+  text(String(score).padStart(6, '0'), 316, y + 12.5, '#ffffff', 10, 'right');
   g.shadowBlur = 0;
 }
 
-function drawTitleHD() { titleCard(drawTitleCardHD, '#0a0603'); }
-function drawTitleCardHD() {
+function drawTitleHD() {
   const g = ctx;
   const bg = g.createLinearGradient(0, 0, 0, SCREEN_H); bg.addColorStop(0, '#1e1008'); bg.addColorStop(1, '#050302');
   g.fillStyle = bg; g.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  for (let i = -3; i < 43; i++) {   // rocky floor
+  for (let i = 0; i < 40; i++) {   // rocky floor
     g.fillStyle = shade('#b86a2c', (hash(i, 1, 2) - 0.6) * 0.6);
     g.beginPath(); g.ellipse(i * 8.5, 176 + hash(i, 3, 4) * 6, 6 + hash(i, 5, 6) * 4, 4 + hash(i, 7, 8) * 3, 0, 0, Math.PI * 2); g.fill();
   }
-  g.fillStyle = '#7a4420'; g.fillRect(-40, 182, 400, 60);
+  g.fillStyle = '#7a4420'; g.fillRect(0, 182, SCREEN_W, 18);
   g.globalCompositeOperation = 'lighter';
   glow(g, 160, 40, 110, 'rgba(255,120,30,0.18)');
   g.globalCompositeOperation = 'source-over';
@@ -2326,7 +1860,6 @@ function drawTitleCardHD() {
   text('Fly down the mine shafts and reach the trapped miner.', 160, 128, '#d8d0c8', 7, 'center');
   text('Watch your POWER. Mind the lava. Don\'t blow yourself up.', 160, 138, '#d8d0c8', 7, 'center');
   if (Math.floor(globalT * 2) % 2) text('CLICK OR PRESS ENTER TO START', 160, 153, '#ffffff', 8, 'center');
-  text('TESTING: press 1-' + LEVELS.length + ' to jump to a level', 160, 164, '#ffa070', 6.5, 'center');
   text('HI ' + String(hiScore).padStart(6, '0') + '     G = classic / enhanced graphics', 160, 189, '#f0d8a0', 6.5, 'center');
 }
 
@@ -2346,21 +1879,16 @@ function render() {
     ctx.beginPath(); ctx.rect(0, 0, VIEW_W, VIEW_H); ctx.clip();
     ctx.translate(-roomX * VIEW_W + sx, -roomY * VIEW_H + sy);     // camera = current room (+ shake)
     if (HD) drawWorldHD();
-    else { drawTiles(); drawHoleRefill(); drawLanterns(); drawMiner(); drawEnemies(); drawDynamite(); drawNuggets(); drawPlayer(); drawParticles(); drawTextParticles(); }
+    else { drawTiles(); drawLanterns(); drawMiner(); drawEnemies(); drawDynamite(); drawNuggets(); drawPlayer(); drawParticles(); drawTextParticles(); }
     ctx.restore();
     if (flash > 0) { ctx.globalAlpha = HD ? 0.55 * flash / 0.12 : 0.85; rect(0, 0, VIEW_W, VIEW_H, '#fff8e0'); ctx.globalAlpha = 1; }
     if (HD) {   // gentle vignette
-      const v = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.4, VIEW_W / 2, VIEW_H / 2, VIEW_W * 0.65);
+      const v = ctx.createRadialGradient(160, 88, 70, 160, 88, 210);
       v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.5)');
       ctx.fillStyle = v; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
     HD ? drawHUDHD() : drawHUD();
     if (paused) centerBanner([['PAUSED', '#f0d030'], ['press P to continue']]);
-    else if (state === 'playing' && introT > 0 && LEVELS[levelIndex].intro) {   // chapter intro, shown for a few seconds
-      ctx.globalAlpha = Math.min(1, introT);
-      centerBanner(LEVELS[levelIndex].intro.map((t, i) => [t, i === 0 ? '#ffd23a' : '#e8e0d8']), 18, 420);
-      ctx.globalAlpha = 1;
-    }
     else if (state === 'levelDone') centerBanner([['MINER RESCUED!', '#40e040'], ['counting bonus...']]);
     else if (state === 'gameover') centerBanner([['GAME OVER', '#ff5040'], ['score ' + score + '   money $' + money], ['press Enter']]);
     else if (state === 'win') centerBanner([['ALL MINERS RESCUED!', '#40e040'], ['score ' + score + '   money $' + money], ['press Enter']]);
@@ -2406,14 +1934,6 @@ const SLIDERS = [
 ];
 const sliderSyncs = [];
 (function buildTuningPanel() {
-  const lb = document.getElementById('levelButtons');
-  LEVELS.forEach((L, i) => {
-    const b = document.createElement('button');
-    b.textContent = (i + 1) + (L.noProp ? ' ⛏' : '');
-    b.title = 'Level ' + (i + 1) + (L.noProp ? ' – the workings' : ' – upper shafts');
-    b.addEventListener('click', () => { ensureAudio(); requestLevel(i); canvas.focus(); });
-    lb.appendChild(b);
-  });
   const box = document.getElementById('sliders');
   for (const item of SLIDERS) {
     if (typeof item === 'string') { const h = document.createElement('h4'); h.textContent = item; box.appendChild(h); continue; }
