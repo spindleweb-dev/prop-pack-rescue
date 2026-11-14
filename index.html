@@ -116,6 +116,9 @@ const NUGGET_LIFE = 14;                // seconds before a dropped nugget crumbl
 //    L  lava wall (deadly)    .  empty space
 //    P  hero start            X  trapped miner (the goal)
 //    B  bat   S  spider   M  moth   T  lantern (touch it = lights out!)
+//    Extra creatures are listed in a level's `extras` as [column, row, kind]:
+//      'N' wall snake – hides in a hole in the wall beside that cell and lunges out
+//      'K' armoured scorpion – walks the floor; its shell soaks up the laser
 //    Ore veins are listed separately in each level's `ores` as [column, row, 'g'|'c']
 //    (g = gold, c = copper). They must sit on a '#' rock tile.
 //    Every room is 20 columns x 11 rows. Levels are stacks/grids of rooms.
@@ -199,6 +202,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 3: a 2x2 grid of rooms ---------------------
     name: 'CROSSROADS',
+    extras: [[14,5,'N']],   // N = wall snake, K = armoured scorpion
     rock: '#2f62a8', dark: '#1f4278', light: '#5888d0', wall: '#98c0f0', bgTop: '#0a1426', bgBot: '#03060d',
     deco: { moss: 0.20, grass: 0.05, hang: 0.14, side: 0.10, puddle: 0.28 },   // wet: lots of puddles
     ores: [[19,18,'g'], [3,16,'g'], [15,4,'g'], [34,11,'c'], [0,14,'c'], [39,13,'c'], [32,16,'c'], [21,9,'c']],
@@ -257,6 +261,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 4: four rooms, lava floors -----------------
     name: 'LAVA LINES',
+    extras: [[1,20,'K']],   // N = wall snake, K = armoured scorpion
     rock: '#8a3aa8', dark: '#5a1a78', light: '#b060d0', wall: '#e0a8f0', bgTop: '#1a0c24', bgBot: '#07030c',
     deco: { moss: 0.08, grass: 0.00, hang: 0.05, side: 0.04, puddle: 0.05 },   // hot and dry near the lava
     ores: [[11,16,'g'], [19,35,'g'], [18,10,'g'], [19,14,'c'], [19,20,'c'], [0,14,'c'], [9,38,'c'], [5,21,'c']],
@@ -312,6 +317,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 5: Lantern Hall – three rooms down: twin walls, spiders guarding the ore ----------------
     name: 'LANTERN HALL',
+    extras: [[12,5,'N'], [17,3,'K']],   // N = wall snake, K = armoured scorpion
     rock: '#6e7480', dark: '#4a505a', light: '#9aa2ae', wall: '#c8ccd4', bgTop: '#14161c', bgBot: '#06070a',
     deco: { moss: 0.30, grass: 0.10, hang: 0.15, side: 0.10, puddle: 0.12 },
     powerSeconds: 100,   // a longer level gets a bigger power supply
@@ -356,6 +362,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 6: Lava Run – a 2x2 loop: right, down, back left past hanging lava ----------------
     name: 'LAVA RUN',
+    extras: [[11,4,'N'], [34,9,'K']],   // N = wall snake, K = armoured scorpion
     rock: '#a8483a', dark: '#7a2e24', light: '#d07060', wall: '#e8b0a0', bgTop: '#200c08', bgBot: '#0a0403',
     deco: { moss: 0.04, grass: 0.03, hang: 0.03, side: 0.02, puddle: 0.03 },
     powerSeconds: 100,   // a longer level gets a bigger power supply
@@ -388,6 +395,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 7: The Dark – four rooms deep, lit only by lanterns ----------------
     name: 'THE DARK',
+    extras: [[1,35,'N'], [18,7,'N']],   // N = wall snake, K = armoured scorpion
     rock: '#2a8a86', dark: '#1a5e5a', light: '#50b8b2', wall: '#a0e0dc', bgTop: '#082020', bgBot: '#020a0a',
     deco: { moss: 0.35, grass: 0.05, hang: 0.25, side: 0.15, puddle: 0.20 },
     powerSeconds: 110,   // a longer level gets a bigger power supply
@@ -444,6 +452,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 8: Switchback – 3x2 rooms: snake right, drop, and come all the way back ----------------
     name: 'SWITCHBACK',
+    extras: [[58,4,'N'], [38,16,'K'], [17,16,'K']],   // N = wall snake, K = armoured scorpion
     rock: '#b08a2a', dark: '#7a5e18', light: '#d8b450', wall: '#f0dc98', bgTop: '#1e1606', bgBot: '#0a0702',
     deco: { moss: 0.15, grass: 0.20, hang: 0.08, side: 0.06, puddle: 0.08 },
     powerSeconds: 130,   // a longer level gets a bigger power supply
@@ -476,6 +485,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 9: The Long Drop – five rooms deep down a lava-walled shaft ----------------
     name: 'THE LONG DROP',
+    extras: [[1,38,'N'], [13,38,'K']],   // N = wall snake, K = armoured scorpion
     rock: '#4a4a52', dark: '#2e2e34', light: '#72727c', wall: '#b0b0bc', bgTop: '#0e0e12', bgBot: '#040406',
     deco: { moss: 0.06, grass: 0.00, hang: 0.06, side: 0.04, puddle: 0.10 },
     powerSeconds: 130,   // a longer level gets a bigger power supply
@@ -544,6 +554,7 @@ const LEVELS = [
   },
   { // ---------------- LEVEL 10: The Deep – the last miner – everything the mine can throw at you ----------------
     name: 'THE DEEP',
+    extras: [[12,5,'N'], [1,15,'N'], [29,27,'K'], [33,16,'K']],   // N = wall snake, K = armoured scorpion
     rock: '#8a1e2a', dark: '#5a1018', light: '#b84452', wall: '#e89aa4', bgTop: '#1e060a', bgBot: '#0a0204',
     deco: { moss: 0.03, grass: 0.00, hang: 0.03, side: 0.02, puddle: 0.04 },
     powerSeconds: 150,   // a longer level gets a bigger power supply
@@ -892,6 +903,8 @@ function loadLevel(i) {
   // Place the ore veins listed for this level.
   for (const [c, r, kind] of def.ores || []) if (level.tiles[r] && level.tiles[r][c] === '#') level.tiles[r][c] = kind;
   placeDecorations();
+  // Extra creatures listed for this level (wall snakes, scorpions)
+  for (const [c, r, kind] of def.extras || []) spawnExtra(c, r, kind);
   // Spiders need the finished map: find the ceiling for the thread and how far down they can go.
   for (const e of enemies) if (e.type === 'spider') {
     let rr = e.row; while (rr > 0 && !isSolid(tileAt(e.col, rr - 1))) rr--;
@@ -1078,7 +1091,7 @@ function updatePlaying(dt) {
 
   // --- Enemies ---
   for (const e of enemies) if (e.alive) updateEnemy(e, dt);
-  if (p.invuln <= 0) for (const e of enemies) if (e.alive && overlap(p, e)) { killPlayer(); return; }
+  if (p.invuln <= 0) for (const e of enemies) if (e.alive && !e.hidden && overlap(p, e)) { killPlayer(); return; }
 
   // --- Nuggets: bounce around and get collected ---
   updateNuggets(dt);
@@ -1107,7 +1120,14 @@ function fireLaser(dt) {
   }
   p.beamEnd = x0 + dir * len;
   const beam = { x: Math.min(x0, p.beamEnd), y: y - 1, w: Math.max(1, len), h: 3 };
-  for (const e of enemies) if (e.alive && overlap(beam, e)) killEnemy(e);
+  for (const e of enemies) if (e.alive && !e.hidden && overlap(beam, e)) {
+    if (e.hp) {                                    // armoured: the beam has to wear the shell down
+      e.hp -= dt; e.hurt = 0.08;
+      if (Math.random() < 0.5) addP({ type: 'spark', x: dir > 0 ? e.x : e.x + e.w, y, vx: rnd(-60, 60) - dir * 40, vy: rnd(-80, 0), life: rnd(0.1, 0.3), color: '#ffe0a0', size: 0.8 });
+      if (Math.random() < 0.15) tone(rnd(2200, 2800), 0.03, 'square', 0.02);   // clink
+      if (e.hp <= 0) killEnemy(e);
+    } else killEnemy(e);
+  }
 }
 
 function damageWall(c, r, dt, sx, sy) {
@@ -1223,14 +1243,58 @@ function updateEnemy(e, dt) {
     e.y += e.dir * e.speed * dt;
     if (e.y > e.bottom) { e.y = e.bottom; e.dir = -1; }
     if (e.y < e.top)    { e.y = e.top;    e.dir = 1; }
-  } else if (e.type === 'moth') {       // flutters in a figure-of-eight
+  } else if (e.type === 'moth') {       // flutters in a figure-of-eight, shedding a little dust
     e.x = e.homeX + Math.sin(e.t * 1.6) * 22;
     e.y = e.homeY + Math.sin(e.t * 2.7) * 10;
+    if (Math.random() < 0.04) addP({ type: 'dust', x: e.x + 5, y: e.y + 6, vx: rnd(-6, 6), vy: rnd(4, 12), life: rnd(0.5, 0.9), size: 0.6, grow: 2 });
+  } else if (e.type === 'snake') {      // hides, lunges out across the passage, holds, pulls back
+    const k = e.t % 3.4;                  // 1.2s hidden, 0.45s lunge, 1.1s out, 0.65s retreat
+    let f = k < 1.2 ? 0 : k < 1.65 ? (k - 1.2) / 0.45 : k < 2.75 ? 1 : 1 - (k - 2.75) / 0.65;
+    f = f * f * (3 - 2 * f);
+    if (f > 0 && e.f === 0 && inCurrentRoom(e.x0, e.y)) noiseBurst(0.3, 0.05);   // hiss
+    e.f = f; e.len = e.maxLen * f;
+    e.hidden = e.len < 6;                 // only hittable (and dangerous) while it's out
+    e.w = e.hidden ? 0 : e.len; e.x = e.dir > 0 ? e.x0 : e.x0 - e.len;
+  } else if (e.type === 'scorpion') {   // walks the floor, turns at walls, edges and lava; strikes when close
+    if (e.hurt > 0) e.hurt -= dt;
+    e.vy = Math.min(e.vy + 500 * dt, 220); e.onGround = false;
+    if (moveY(e, e.vy * dt)) { if (e.vy > 0) e.onGround = true; e.vy = 0; }
+    const pc = player.x + PW / 2, ec = e.x + e.w / 2;
+    e.strike = Math.max(0, e.strike - dt);
+    if (e.strike === 0 && Math.abs(pc - ec) < 24 && Math.abs((player.y + PH) - (e.y + e.h)) < 18) {
+      e.strike = 0.7; e.vx = Math.sign(pc - ec || 1) * Math.abs(e.vx);
+    }
+    if (e.onGround && e.strike < 0.35) {
+      const ahead = e.vx > 0 ? e.x + e.w + 1 : e.x - 1, ac = Math.floor(ahead / TILE);
+      const footRow = Math.floor((e.y + e.h - 1) / TILE);
+      const under = tileAt(ac, footRow + 1);
+      if (isSolid(tileAt(ac, footRow)) || under === 'L' || !isSolid(under)) e.vx = -e.vx;
+      else { moveX(e, e.vx * dt); e.walkT += dt; }
+    }
   }
 }
 
+// ---- New creatures ---------------------------------------------------------
+function spawnExtra(c, r, kind) {
+  const x = c * TILE, y = r * TILE;
+  if (kind === 'N') {                       // wall snake: lives in the wall on whichever side is rock
+    const dir = isSolid(tileAt(c - 1, r)) ? 1 : -1;
+    const x0 = dir > 0 ? x : x + TILE;
+    let maxLen = 0;                          // how far it can reach before hitting the far wall
+    while (maxLen < 54 && !isSolid(tileAt(Math.floor((x0 + dir * (maxLen + 3)) / TILE), r))) maxLen += 2;
+    enemies.push({ type: 'snake', x: x0, y: y + 4, w: 0, h: 8, x0, dir, maxLen, len: 0, f: 0,
+                   t: hash(c, r, 1) * 3.4, alive: true, hidden: true, pts: 75 });
+  } else if (kind === 'K') {                // armoured scorpion
+    enemies.push({ type: 'scorpion', x: x - 1, y: y + TILE - 16, w: 18, h: 16,   // tall: its raised tail is in the laser's path vx: hash(c, r, 2) < 0.5 ? -20 : 20, vy: 0,
+                   t: 0, walkT: 0, alive: true, hp: SCORPION_ARMOUR, maxHp: SCORPION_ARMOUR, hurt: 0, strike: 0, pts: 150 });
+  }
+}
+const SCORPION_ARMOUR = 0.7;               // seconds of continuous laser to crack its shell
+
+const inCurrentRoom = (x, y) => Math.floor(x / VIEW_W) === roomX && Math.floor(y / VIEW_H) === roomY;
+
 function killEnemy(e) {
-  e.alive = false; addScore(PTS_ENEMY);
+  e.alive = false; addScore(e.pts || PTS_ENEMY);
   const ex = e.x + e.w / 2, ey = e.y + e.h / 2;
   burst(ex, ey, '#ffffff', 10); burst(ex, ey, '#ff70ff', 6);
   addP({ type: 'fire', x: ex, y: ey, life: 0.25, size: 3, grow: 30 });
@@ -1441,6 +1505,28 @@ function drawEnemies() {
   for (const e of enemies) {
     if (!e.alive) continue;
     const x = Math.round(e.x), y = Math.round(e.y), flap = Math.floor(e.t * 10) % 2;
+    if (e.type === 'snake') {
+      const x0 = Math.round(e.x0), d = e.dir;
+      rect(d > 0 ? x0 : x0 - 3, y + 1, 3, 6, '#000');                       // the hole in the wall
+      if (!e.hidden) {
+        const len = Math.round(e.len), hx = d > 0 ? x0 + len - 4 : x0 - len;
+        rect(d > 0 ? x0 : x0 - len, y + 3, len, 3, '#40a040');               // body
+        rect(hx, y + 2, 4, 5, '#60c040'); rect(d > 0 ? hx + 2 : hx + 1, y + 3, 1, 1, '#ff0');
+        if (flap) rect(d > 0 ? hx + 4 : hx - 2, y + 4, 2, 1, '#ff3030');     // tongue
+      }
+      continue;
+    }
+    if (e.type === 'scorpion') {
+      const f = e.vx >= 0 ? 1 : -1, col = e.hurt > 0 ? '#ffffff' : '#a0602a', yb = y + 8;
+      rect(x + 3, yb + 3, 12, 4, col);                                         // body
+      rect(f > 0 ? x + 15 : x, yb + 3, 3, 2, col);                             // pincers
+      const st = e.strike > 0.35;
+      rect(f > 0 ? x + 1 : x + 15, yb - 6, 2, 9, col);                         // tail rising high
+      rect(f > 0 ? x + (st ? 6 : 3) : x + (st ? 10 : 13), yb - 7, 3, 2, col);  // curl over the back
+      rect(f > 0 ? x + (st ? 9 : 6) : x + (st ? 7 : 10), yb - 6, 2, 2, '#ff4020');   // stinger
+      if (flap) for (let i = 0; i < 4; i++) rect(x + 4 + i * 3, yb + 7, 1, 1, '#603010');
+      continue;
+    }
     if (e.type === 'bat') {
       rect(x + 5, y + 2, 4, 4, '#b050d0');
       rect(x + 6, y + 3, 1, 1, '#ff2020'); rect(x + 8, y + 3, 1, 1, '#ff2020');
@@ -2090,63 +2176,252 @@ function drawPlayerHD(g) {
   }
 }
 
+// ---- Creatures (Enhanced mode) ---------------------------------------------
+// Each creature is drawn from simple shapes, but layered like a painting:
+// shadowed shapes first, then mid-tones, then highlights, eye glints and glow.
+function drawBatHD(g, e) {
+  const cx = e.x + e.w / 2, cy = e.y + e.h / 2, f = e.vx >= 0 ? 1 : -1;
+  const a = Math.sin(e.t * 16);                       // wing beat: -1 down … 1 up
+  const span = 8.6 * (0.62 + 0.38 * (1 - Math.abs(a)));   // wings look shorter at the top/bottom of a beat
+  const tip = -5 * a;
+  g.save(); g.translate(cx, cy); g.scale(f, 1);
+  for (const s of [-1, 1]) {
+    // membrane: leading edge to the wingtip, scalloped trailing edge back between the "finger" bones
+    const wrist = [s * span * 0.5, -1.8 + tip * 0.55], wtip = [s * span, -0.4 + tip];
+    const f1 = [s * span * 0.84, 1.6 + tip * 0.55], f2 = [s * span * 0.6, 2.7 + tip * 0.32], f3 = [s * span * 0.36, 2.5 + tip * 0.15];
+    const mg = g.createLinearGradient(0, 0, s * span, tip);
+    mg.addColorStop(0, 'rgba(58,26,72,0.97)'); mg.addColorStop(1, 'rgba(110,62,128,0.82)');
+    g.fillStyle = mg; g.beginPath(); g.moveTo(s * 1.2, -0.9);
+    g.quadraticCurveTo(s * span * 0.25, -2.2 + tip * 0.3, wrist[0], wrist[1]);
+    g.lineTo(wtip[0], wtip[1]);
+    for (const [pt, prev] of [[f1, wtip], [f2, f1], [f3, f2], [[s * 1.5, 2], f3]]) {
+      const mx = (pt[0] + prev[0]) / 2, my = (pt[1] + prev[1]) / 2 - 1.1;     // scallop curves upward
+      g.quadraticCurveTo(mx, my, pt[0], pt[1]);
+    }
+    g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(30,10,40,0.9)'; g.lineWidth = 0.35;                // finger bones
+    g.beginPath();
+    for (const pt of [wtip, f1, f2, f3]) { g.moveTo(wrist[0], wrist[1]); g.lineTo(pt[0], pt[1]); }
+    g.moveTo(s * 1.2, -0.9); g.lineTo(wrist[0], wrist[1]); g.stroke();
+    g.fillStyle = '#d8c8d8'; g.beginPath(); g.arc(wrist[0], wrist[1] - 0.3, 0.35, 0, Math.PI * 2); g.fill();   // thumb claw
+  }
+  // furry body
+  const bg = g.createRadialGradient(-0.6, -0.6, 0.2, 0, 0.4, 3.4);
+  bg.addColorStop(0, '#8a5a6a'); bg.addColorStop(0.6, '#4a2638'); bg.addColorStop(1, '#2a1220');
+  g.fillStyle = bg; g.beginPath(); g.ellipse(0, 0.5, 2.3, 3, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(30,12,22,0.8)'; g.lineWidth = 0.25;
+  for (let i = 0; i < 14; i++) {
+    const an = i / 14 * Math.PI * 2, r0 = 2.1;
+    g.beginPath(); g.moveTo(Math.cos(an) * r0, 0.5 + Math.sin(an) * r0 * 1.3);
+    g.lineTo(Math.cos(an) * (r0 + 0.7), 0.5 + Math.sin(an) * (r0 + 0.7) * 1.3); g.stroke();
+  }
+  g.fillStyle = 'rgba(190,150,150,0.35)'; g.beginPath(); g.ellipse(0.3, 1.4, 1.1, 1.5, 0, 0, Math.PI * 2); g.fill();   // pale belly
+  // head, ears, snout, fangs
+  g.fillStyle = '#4a2638'; g.beginPath(); g.arc(0.4, -2.3, 1.75, 0, Math.PI * 2); g.fill();
+  for (const ex of [-0.9, 1.5]) {
+    g.fillStyle = '#3a1a2c'; g.beginPath(); g.moveTo(ex - 0.8, -3.2); g.lineTo(ex, -6); g.lineTo(ex + 0.7, -3.4); g.fill();
+    g.fillStyle = '#c87888'; g.beginPath(); g.moveTo(ex - 0.35, -3.4); g.lineTo(ex, -5.2); g.lineTo(ex + 0.3, -3.5); g.fill();
+  }
+  g.fillStyle = '#5a3040'; g.beginPath(); g.ellipse(1.9, -1.9, 0.9, 0.6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(1.5, -1.4); g.lineTo(1.7, -0.6); g.lineTo(1.9, -1.4); g.fill();
+  g.globalCompositeOperation = 'lighter';
+  glow(g, 0.0, -2.6, 1.6, 'rgba(255,40,30,0.9)'); glow(g, 1.4, -2.6, 1.6, 'rgba(255,40,30,0.9)');
+  g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#fff'; g.fillRect(-0.15, -2.95, 0.35, 0.35); g.fillRect(1.25, -2.95, 0.35, 0.35);   // eye glints
+  g.restore();
+}
+
+function drawSpiderHD(g, e) {
+  const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  // silk thread, with a glint that slides along it
+  g.strokeStyle = 'rgba(230,235,240,0.45)'; g.lineWidth = 0.35;
+  g.beginPath(); g.moveTo(cx, e.threadTop); g.lineTo(cx, cy - 3); g.stroke();
+  const gl = e.threadTop + ((globalT * 30) % Math.max(1, cy - 3 - e.threadTop));
+  g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(cx - 0.3, gl, 0.6, 1.4);
+  g.save(); g.translate(cx, cy); g.rotate(Math.sin(e.t * 3) * 0.08);
+  // eight jointed, hairy legs
+  for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
+    const w = Math.sin(e.t * 11 + i * 1.4 + (s > 0 ? 1.2 : 0)) * 0.8;
+    const hip = [s * 1.5, 0.6 + (i - 1.5) * 0.85];
+    const knee = [s * (4.3 + i * 0.35), -3.2 + i * 0.75 + w];
+    const foot = [s * (6.6 + i * 0.25), 1.6 + i * 1.25 + w * 0.5];
+    g.strokeStyle = '#13240f'; g.lineCap = 'round';
+    g.lineWidth = 0.95; g.beginPath(); g.moveTo(hip[0], hip[1]); g.lineTo(knee[0], knee[1]); g.stroke();
+    g.lineWidth = 0.65; g.beginPath(); g.moveTo(knee[0], knee[1]); g.lineTo(foot[0], foot[1]); g.stroke();
+    g.strokeStyle = 'rgba(120,150,100,0.5)'; g.lineWidth = 0.18;                  // little hairs
+    for (const [p0, p1] of [[hip, knee], [knee, foot]]) for (let k = 1; k <= 3; k++) {
+      const t = k / 4, px = p0[0] + (p1[0] - p0[0]) * t, py = p0[1] + (p1[1] - p0[1]) * t;
+      g.beginPath(); g.moveTo(px, py); g.lineTo(px + s * 0.5, py - 0.6); g.stroke();
+    }
+    g.fillStyle = '#2a4a20'; g.beginPath(); g.arc(knee[0], knee[1], 0.45, 0, Math.PI * 2); g.fill();   // knee joint
+  }
+  g.lineCap = 'butt';
+  // abdomen: glossy, with a pale chevron pattern
+  const ab = g.createRadialGradient(-1, -2.4, 0.3, 0, -1, 4.6);
+  ab.addColorStop(0, '#5aa850'); ab.addColorStop(0.5, '#244a1e'); ab.addColorStop(1, '#0c1a0a');
+  g.fillStyle = ab; g.beginPath(); g.ellipse(0, -1, 3.8, 4.3, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(190,230,140,0.55)'; g.lineWidth = 0.45;
+  for (let k = 0; k < 3; k++) { const yy = -3.2 + k * 1.5; g.beginPath(); g.moveTo(-1.6 + k * 0.3, yy - 0.6); g.lineTo(0, yy + 0.4); g.lineTo(1.6 - k * 0.3, yy - 0.6); g.stroke(); }
+  g.fillStyle = 'rgba(255,255,255,0.45)'; g.beginPath(); g.ellipse(-1.3, -3.2, 1.1, 0.6, -0.5, 0, Math.PI * 2); g.fill();
+  // head (cephalothorax), fangs and a cluster of eyes
+  g.fillStyle = '#1c3416'; g.beginPath(); g.ellipse(0, 2.7, 2.3, 1.9, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#0a1408'; g.fillRect(-0.9, 4.2, 0.6, 1); g.fillRect(0.3, 4.2, 0.6, 1);
+  g.globalCompositeOperation = 'lighter';
+  glow(g, -0.6, 2.9, 1, 'rgba(255,40,40,0.9)'); glow(g, 0.6, 2.9, 1, 'rgba(255,40,40,0.9)');
+  g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#ff5050';
+  for (const [ex, ey] of [[-1.3, 2.4], [1.3, 2.4], [-0.3, 2.2], [0.3, 2.2], [-1, 3.4], [1, 3.4]]) g.fillRect(ex - 0.15, ey - 0.15, 0.3, 0.3);
+  g.fillStyle = '#fff'; g.fillRect(-0.75, 2.65, 0.3, 0.3); g.fillRect(0.45, 2.65, 0.3, 0.3);
+  g.restore();
+}
+
+function drawMothHD(g, e) {
+  const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  const open = 0.28 + 0.72 * Math.abs(Math.sin(e.t * 16));   // wings fold and open
+  g.save(); g.translate(cx, cy);
+  g.globalCompositeOperation = 'lighter'; glow(g, 0, 0, 9, 'rgba(230,235,170,0.16)'); g.globalCompositeOperation = 'source-over';
+  for (const s of [-1, 1]) {
+    g.save(); g.scale(s, open);
+    // forewing
+    const fg = g.createLinearGradient(0, -1, 5.5, -3);
+    fg.addColorStop(0, '#b8a478'); fg.addColorStop(0.6, '#e8dcae'); fg.addColorStop(1, '#a89060');
+    g.fillStyle = fg; g.beginPath(); g.moveTo(0.6, -0.8);
+    g.bezierCurveTo(2, -4.6, 5.4, -4.4, 6, -2.4); g.bezierCurveTo(5.6, -0.6, 3, 0.3, 0.6, 0); g.fill();
+    g.strokeStyle = 'rgba(110,90,50,0.6)'; g.lineWidth = 0.22;                     // vein lines
+    g.beginPath(); g.moveTo(0.8, -0.6); g.lineTo(5.2, -3); g.moveTo(0.8, -0.4); g.lineTo(4.6, -1.2); g.stroke();
+    // hindwing with an eye-spot to scare predators
+    const hg = g.createLinearGradient(0, 0, 4, 3);
+    hg.addColorStop(0, '#c4ac7c'); hg.addColorStop(1, '#8a7048');
+    g.fillStyle = hg; g.beginPath(); g.moveTo(0.6, 0.2);
+    g.bezierCurveTo(1.6, 3.6, 4.4, 3.8, 4.4, 1.8); g.bezierCurveTo(4.2, 0.6, 2.4, 0.2, 0.6, 0.2); g.fill();
+    g.fillStyle = '#3a2a18'; g.beginPath(); g.arc(2.8, 1.8, 0.95, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#e8c070'; g.beginPath(); g.arc(2.8, 1.8, 0.55, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1a1008'; g.beginPath(); g.arc(2.85, 1.75, 0.25, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  // fuzzy thorax, striped abdomen
+  const tg = g.createRadialGradient(-0.3, -1.4, 0.2, 0, -0.8, 1.6);
+  tg.addColorStop(0, '#d8c090'); tg.addColorStop(1, '#6a5030');
+  g.fillStyle = tg; g.beginPath(); g.ellipse(0, -0.8, 1.15, 1.5, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#7a5a34'; g.beginPath(); g.ellipse(0, 1.8, 0.85, 2.1, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(40,25,10,0.55)'; for (let k = 0; k < 3; k++) g.fillRect(-0.8, 1 + k * 0.9, 1.6, 0.3);
+  // feathery antennae
+  g.strokeStyle = '#6a5030'; g.lineWidth = 0.28;
+  for (const s of [-1, 1]) {
+    g.beginPath(); g.moveTo(s * 0.3, -2.1); g.quadraticCurveTo(s * 1.2, -3.8, s * 2.4, -4.4); g.stroke();
+    g.lineWidth = 0.15;
+    for (let k = 1; k <= 4; k++) { const t = k / 5, ax = s * (0.3 + 2.1 * t), ay = -2.1 - 2.3 * t; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax + s * 0.5, ay + 0.35); g.moveTo(ax, ay); g.lineTo(ax - s * 0.2, ay - 0.5); g.stroke(); }
+    g.lineWidth = 0.28;
+  }
+  g.fillStyle = '#1a1008'; g.beginPath(); g.arc(-0.45, -1.9, 0.3, 0, Math.PI * 2); g.arc(0.45, -1.9, 0.3, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+
+function drawSnakeHD(g, e) {
+  const d = e.dir, x0 = e.x0, cy = e.y + 4;
+  // the dark hole it lives in, with a worn rim
+  g.fillStyle = 'rgba(0,0,0,0.85)'; g.beginPath(); g.ellipse(x0 - d * 0.6, cy, 2.4, 4.4, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(255,230,190,0.18)'; g.lineWidth = 0.6;
+  g.beginPath(); g.ellipse(x0 - d * 0.6, cy, 2.6, 4.6, 0, -Math.PI / 2, Math.PI / 2, d < 0); g.stroke();
+  if (e.len < 1) {                                   // eyes glinting in the dark while it waits
+    if ((e.t % 3.4) > 0.5) { g.fillStyle = 'rgba(255,220,40,0.8)'; g.fillRect(x0 - d * 1.2 - 0.5, cy - 1.2, 0.6, 0.6); g.fillRect(x0 - d * 1.2 + 0.4, cy - 1.2, 0.6, 0.6); }
+    return;
+  }
+  // body: a wavy line from the hole to the head, drawn in layers (outline, scales, belly, spine pattern)
+  const pts = [], n = Math.max(2, Math.ceil(e.len / 1.5));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, x = x0 + d * e.len * t;
+    pts.push([x, cy + Math.sin(t * 7 - e.t * 9) * 1.6 * t]);
+  }
+  const path = () => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); };
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.strokeStyle = '#1c3210'; g.lineWidth = 5.2; path(); g.stroke();
+  g.strokeStyle = '#4e8a2c'; g.lineWidth = 4; path(); g.stroke();
+  g.strokeStyle = 'rgba(200,210,120,0.75)'; g.lineWidth = 1.3;
+  g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y + 1.1) : g.moveTo(x, y + 1.1)); g.stroke();
+  g.fillStyle = '#1c3210';
+  for (let i = 1; i < pts.length - 1; i += 2) {      // diamond markings along the back
+    const [x, y] = pts[i]; g.beginPath(); g.moveTo(x - 1, y - 0.6); g.lineTo(x, y - 1.4); g.lineTo(x + 1, y - 0.6); g.lineTo(x, y + 0.2); g.fill();
+  }
+  g.lineCap = 'butt'; g.lineJoin = 'miter';
+  // head
+  const [hx, hy] = pts[pts.length - 1];
+  g.save(); g.translate(hx, hy); g.scale(d, 1);
+  const hg = g.createRadialGradient(0.4, -1, 0.3, 0.6, 0, 3.6);
+  hg.addColorStop(0, '#8ac850'); hg.addColorStop(1, '#2a5018');
+  g.fillStyle = hg; g.beginPath(); g.ellipse(1.2, 0, 3.4, 2.6, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#e8d84a'; g.beginPath(); g.arc(2.2, -1, 0.85, 0, Math.PI * 2); g.fill();   // eye
+  g.fillStyle = '#000'; g.fillRect(2.05, -1.7, 0.35, 1.4);                                 // slit pupil
+  g.fillStyle = '#fff'; g.fillRect(1.8, -1.5, 0.3, 0.3);
+  if ((e.t * 3) % 1 < 0.45) {                       // flicking forked tongue
+    g.strokeStyle = '#e02840'; g.lineWidth = 0.4;
+    g.beginPath(); g.moveTo(4.4, 0.4); g.lineTo(6.6, 0.4); g.lineTo(7.6, -0.4); g.moveTo(6.6, 0.4); g.lineTo(7.6, 1.2); g.stroke();
+  }
+  g.restore();
+}
+
+function drawScorpionHD(g, e) {
+  const f = e.vx >= 0 ? 1 : -1, bx = e.x + e.w / 2, by = e.y + e.h;
+  const step = Math.sin(e.walkT * 22), strike = e.strike > 0.35 ? Math.sin((0.7 - e.strike) / 0.35 * Math.PI) : 0;
+  g.save(); g.translate(bx, by); g.scale(f * 1.3, 1.3);
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(0, -0.2, 7.5, 1, 0, 0, Math.PI * 2); g.fill();
+  // legs: four pairs, alternating step
+  g.strokeStyle = '#3a1e0c'; g.lineWidth = 0.55; g.lineCap = 'round';
+  for (let i = 0; i < 4; i++) {
+    const lx = -3.6 + i * 2.2, sw = (i % 2 ? step : -step) * 0.7;
+    g.beginPath(); g.moveTo(lx, -2.6); g.lineTo(lx - 1 + sw, -3.8); g.lineTo(lx - 1.8 + sw, 0); g.stroke();
+  }
+  g.lineCap = 'butt';
+  // armoured body plates
+  const shell = (x, y, w, h) => {
+    const sg = g.createLinearGradient(0, y, 0, y + h);
+    sg.addColorStop(0, '#c88a4a'); sg.addColorStop(0.4, '#8a4a1e'); sg.addColorStop(1, '#3a1a08');
+    g.fillStyle = sg; rr(g, x, y, w, h, 1.2); g.fill();
+    g.fillStyle = 'rgba(255,230,190,0.35)'; g.fillRect(x + 0.6, y + 0.4, w - 1.2, 0.5);
+  };
+  shell(-5.2, -4.6, 3.2, 3); shell(-2.3, -4.9, 3.2, 3.3); shell(0.6, -5, 4.2, 3.5);   // abdomen segments + head plate
+  g.fillStyle = '#1a0a04'; g.fillRect(3.4, -4.3, 0.5, 0.5); g.fillRect(2.6, -4.4, 0.5, 0.5);   // eyes
+  // cracks appear as the laser wears the shell down
+  const dmg = 1 - e.hp / e.maxHp;
+  if (dmg > 0.05) {
+    g.strokeStyle = `rgba(20,8,0,${0.4 + dmg * 0.5})`; g.lineWidth = 0.3; g.beginPath();
+    g.moveTo(-1.5, -4.6); g.lineTo(-0.6, -3.2); g.lineTo(-1.2, -2);
+    if (dmg > 0.4) { g.moveTo(2, -4.8); g.lineTo(2.8, -3.4); g.lineTo(2.2, -2.2); }
+    g.stroke();
+  }
+  // pincers reaching forward, snapping
+  const snap = (Math.sin(e.t * 6) + 1) * 0.35;
+  for (const [py, col] of [[-3.4, '#7a3e16'], [-2.4, '#9a5222']]) {
+    g.strokeStyle = col; g.lineWidth = 0.9; g.beginPath(); g.moveTo(4.4, py); g.lineTo(6.6, py - 1.2); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.ellipse(7.4, py - 1.4, 1.2, 0.8, -0.3, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = col; g.lineWidth = 0.5; g.beginPath();
+    g.moveTo(8.2, py - 1.6); g.lineTo(9.4, py - 2.2 - snap); g.moveTo(8.2, py - 1.2); g.lineTo(9.4, py - 0.8 + snap); g.stroke();
+  }
+  // tail: a chain of segments curling up over the back, lunging forward to strike
+  let x = -5, y = -3.4, ang = -1.95 + strike * 0.9;          // tail rises high over the back
+  for (let i = 0; i < 6; i++) {
+    const r = 1.3 - i * 0.1;
+    const tg = g.createRadialGradient(x - 0.3, y - 0.3, 0.1, x, y, r);
+    tg.addColorStop(0, '#c88a4a'); tg.addColorStop(1, '#5a2a0e');
+    g.fillStyle = tg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    ang += 0.42 + strike * 0.25; x += Math.cos(ang) * 1.9; y += Math.sin(ang) * 1.9;
+  }
+  g.save(); g.translate(x, y); g.rotate(ang + 0.6);
+  g.fillStyle = '#2a0a04'; g.beginPath(); g.moveTo(-0.7, -0.6); g.lineTo(1.8, 0); g.lineTo(-0.7, 0.6); g.fill();   // stinger
+  g.fillStyle = 'rgba(255,240,220,0.7)'; g.fillRect(0.2, -0.15, 0.8, 0.25);
+  g.restore();
+  if (e.hurt > 0) { g.globalCompositeOperation = 'lighter'; glow(g, 0, -3, 7, 'rgba(255,220,160,0.35)'); g.globalCompositeOperation = 'source-over'; }
+  g.restore();
+}
+
 function drawEnemiesHD(g) {
   for (const e of enemies) {
     if (!e.alive) continue;
-    const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
-    if (e.type === 'bat') {
-      const a = Math.sin(e.t * 18);
-      g.save(); g.translate(cx, cy);
-      g.fillStyle = '#4a2266';
-      for (const s of [-1, 1]) {   // membrane wings with scalloped edges
-        g.beginPath(); g.moveTo(0, -0.5);
-        g.quadraticCurveTo(s * 4, -3 - 3 * a, s * 8, -2 - 4 * a);
-        g.quadraticCurveTo(s * 7, 0.5 - a, s * 5.8, 0.6);
-        g.quadraticCurveTo(s * 4.8, 2.4, s * 3.2, 1);
-        g.quadraticCurveTo(s * 2, 2.6, 0, 1.6); g.closePath(); g.fill();
-      }
-      const bg = g.createRadialGradient(-0.5, -0.8, 0.2, 0, 0, 3);
-      bg.addColorStop(0, '#9a5ac4'); bg.addColorStop(1, '#3e1a58');
-      g.fillStyle = bg; g.beginPath(); g.ellipse(0, 0.3, 2.3, 2.8, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#3e1a58';
-      g.beginPath(); g.moveTo(-1.8, -1.6); g.lineTo(-1.2, -3.8); g.lineTo(-0.4, -2); g.fill();
-      g.beginPath(); g.moveTo(1.8, -1.6); g.lineTo(1.2, -3.8); g.lineTo(0.4, -2); g.fill();
-      g.globalCompositeOperation = 'lighter';
-      glow(g, -0.9, -0.4, 1.6, 'rgba(255,40,40,0.9)'); glow(g, 0.9, -0.4, 1.6, 'rgba(255,40,40,0.9)');
-      g.globalCompositeOperation = 'source-over';
-      g.restore();
-    } else if (e.type === 'spider') {
-      g.strokeStyle = 'rgba(230,230,230,0.5)'; g.lineWidth = 0.4;
-      g.beginPath(); g.moveTo(cx, e.threadTop); g.lineTo(cx, cy - 2); g.stroke();
-      g.strokeStyle = '#1c5e22'; g.lineWidth = 0.8;
-      for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
-        const w = Math.sin(e.t * 12 + i * 1.3 + (s > 0 ? 1 : 0)) * 0.9;
-        g.beginPath(); g.moveTo(cx + s * 1.5, cy + 0.5);
-        g.quadraticCurveTo(cx + s * (4 + i * 0.5), cy - 3.5 + i * 1.3 + w, cx + s * (6.2 + i * 0.3), cy + 1 + i * 1.5 + w * 0.5);
-        g.stroke();
-      }
-      const ab = g.createRadialGradient(cx - 1, cy - 1.6, 0.3, cx, cy - 0.6, 3.8);
-      ab.addColorStop(0, '#7af07e'); ab.addColorStop(1, '#17561c');
-      g.fillStyle = ab; g.beginPath(); g.arc(cx, cy - 0.6, 3.6, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#1f6a24'; g.beginPath(); g.arc(cx, cy + 2.6, 2.1, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#ff3030';
-      for (const ox of [-1, -0.35, 0.35, 1]) g.fillRect(cx + ox - 0.25, cy + 2.6, 0.5, 0.5);
-    } else if (e.type === 'moth') {
-      const f = 0.3 + 0.7 * Math.abs(Math.sin(e.t * 16));
-      g.save(); g.translate(cx, cy);
-      g.globalCompositeOperation = 'lighter'; glow(g, 0, 0, 8, 'rgba(230,240,160,0.18)'); g.globalCompositeOperation = 'source-over';
-      g.fillStyle = 'rgba(236,232,170,0.88)';
-      for (const s of [-1, 1]) {
-        g.beginPath(); g.ellipse(s * 2.6, -0.8, 2.6, 2.4 * f, s * 0.5, 0, Math.PI * 2); g.fill();
-        g.beginPath(); g.ellipse(s * 2, 1.6, 1.8, 1.6 * f, -s * 0.4, 0, Math.PI * 2); g.fill();
-      }
-      g.fillStyle = 'rgba(120,90,50,0.6)';
-      for (const s of [-1, 1]) { g.beginPath(); g.arc(s * 2.8, -0.8, 0.7 * f + 0.2, 0, Math.PI * 2); g.fill(); }
-      g.fillStyle = '#7a5a34'; g.beginPath(); g.ellipse(0, 0.3, 0.9, 2.8, 0, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = '#7a5a34'; g.lineWidth = 0.3;
-      g.beginPath(); g.moveTo(-0.3, -2.4); g.lineTo(-1.6, -4.2); g.moveTo(0.3, -2.4); g.lineTo(1.6, -4.2); g.stroke();
-      g.restore();
-    }
+    if (e.type === 'bat') drawBatHD(g, e);
+    else if (e.type === 'spider') drawSpiderHD(g, e);
+    else if (e.type === 'moth') drawMothHD(g, e);
+    else if (e.type === 'snake') drawSnakeHD(g, e);
+    else if (e.type === 'scorpion') drawScorpionHD(g, e);
   }
 }
 

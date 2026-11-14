@@ -26,6 +26,8 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 - Acceleration-based physics with a live tuning panel (top-right of the page)
 - Segmented laser, dynamite with realistic explosions, breakable walls
 - Gold & copper ore veins – mine them for money ($)
+- Creatures: bats, spiders, moths, wall snakes (lunge out of holes; only hittable when out) and
+  armoured scorpions (need a sustained laser burst or dynamite)
 - Recorded sound effects with a compressor/limiter mix bus
 
 ## How the code is organised
