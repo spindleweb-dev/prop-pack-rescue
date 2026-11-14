@@ -33,6 +33,8 @@
 </div>
 <details id="tuning">
   <summary>Tuning: physics &amp; sound</summary>
+  <h4 style="margin:8px 0 2px;color:#ff8040;font-size:12px">Level select (testing)</h4>
+  <div id="levelButtons"></div>
   <div id="sliders"></div>
   <button id="resetPhys">Reset to defaults</button><button id="copyPhys">Copy values</button>
   <div id="physOut"></div>
@@ -440,6 +442,8 @@ const KEYMAP = {
   KeyP: 'pause', Escape: 'pause', Enter: 'start', KeyM: 'mute', KeyG: 'gfx',
 };
 addEventListener('keydown', e => {
+  const num = /^Digit([1-9])$/.exec(e.code);
+  if (num && !(e.target instanceof HTMLInputElement)) { requestLevel(+num[1] - 1); ensureAudio(); e.preventDefault(); return; }
   const k = KEYMAP[e.code]; if (!k) return;
   e.preventDefault();
   if (!keys[k]) pressed[k] = true;
@@ -738,9 +742,17 @@ function loadLevel(i) {
   return start;
 }
 
-function startGame() {
-  score = 0; money = 0; lives = START_LIVES; nextExtraLife = EXTRA_LIFE_EVERY; levelIndex = 0;
+function startGame(startLevel = 0) {
+  score = 0; money = 0; lives = START_LIVES; nextExtraLife = EXTRA_LIFE_EVERY; levelIndex = startLevel;
   beginLevel();
+}
+
+// ---- Level select (for testing) ----------------------------------------
+// Press 1–9 at any time (or use the buttons in the tuning panel) to jump
+// straight to that level with a fresh game.
+let jumpToLevel = null;
+function requestLevel(n) {
+  if (n >= 0 && n < LEVELS.length) { jumpToLevel = n; paused = false; }
 }
 function beginLevel() {
   const start = loadLevel(levelIndex);
@@ -1282,6 +1294,7 @@ function step(dt) {
   globalT += dt;
   if (pressed.mute) muted = !muted;
   if (pressed.gfx) { HD = !HD; applyGfxMode(); }
+  if (jumpToLevel !== null) { const n = jumpToLevel; jumpToLevel = null; startGame(n); }
   if (state === 'title') {
     if (pressed.start || pressed.fire) startGame();
   } else if (state === 'playing') {
@@ -1535,6 +1548,7 @@ function drawTitleCard() {
   text('Fly down the mine shafts and reach the trapped miner.', 160, 126, '#ccc', 8, 'center');
   text('Watch your POWER. Mind the lava. Don\'t blow yourself up.', 160, 137, '#ccc', 8, 'center');
   if (Math.floor(globalT * 2) % 2) text('CLICK OR PRESS ENTER TO START', 160, 152, '#fff', 8, 'center');
+  text('TESTING: press 1-' + LEVELS.length + ' to jump to a level', 160, 162, '#ff9a60', 7, 'center');
   text('HI ' + String(hiScore).padStart(6, '0'), 160, 188, '#f0d030', 8, 'center');
 }
 
@@ -2312,6 +2326,7 @@ function drawTitleCardHD() {
   text('Fly down the mine shafts and reach the trapped miner.', 160, 128, '#d8d0c8', 7, 'center');
   text('Watch your POWER. Mind the lava. Don\'t blow yourself up.', 160, 138, '#d8d0c8', 7, 'center');
   if (Math.floor(globalT * 2) % 2) text('CLICK OR PRESS ENTER TO START', 160, 153, '#ffffff', 8, 'center');
+  text('TESTING: press 1-' + LEVELS.length + ' to jump to a level', 160, 164, '#ffa070', 6.5, 'center');
   text('HI ' + String(hiScore).padStart(6, '0') + '     G = classic / enhanced graphics', 160, 189, '#f0d8a0', 6.5, 'center');
 }
 
@@ -2391,6 +2406,14 @@ const SLIDERS = [
 ];
 const sliderSyncs = [];
 (function buildTuningPanel() {
+  const lb = document.getElementById('levelButtons');
+  LEVELS.forEach((L, i) => {
+    const b = document.createElement('button');
+    b.textContent = (i + 1) + (L.noProp ? ' ⛏' : '');
+    b.title = 'Level ' + (i + 1) + (L.noProp ? ' – the workings' : ' – upper shafts');
+    b.addEventListener('click', () => { ensureAudio(); requestLevel(i); canvas.focus(); });
+    lb.appendChild(b);
+  });
   const box = document.getElementById('sliders');
   for (const item of SLIDERS) {
     if (typeof item === 'string') { const h = document.createElement('h4'); h.textContent = item; box.appendChild(h); continue; }
