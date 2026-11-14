@@ -19,7 +19,7 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 
 ## Features
 
-- 4 levels of mine shafts with flip-screen rooms, like the Atari 2600 original
+- Chapter 1: 4 levels of mine shafts with large 32×18-tile flip-screen rooms
 - Acceleration-based physics with a live tuning panel (top-right of the page)
 - Segmented laser, dynamite with realistic explosions, breakable walls
 - Gold & copper ore veins – mine them for money ($)
@@ -30,7 +30,7 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 Everything lives in `index.html`. The script is split into numbered sections:
 
 1. **Constants** – every tunable number in one place
-2. **Level data** – maps drawn as text, one character per tile
+2. **Level data** – maps drawn as text, one character per tile (each room is 32×18)
 3. **Input & audio** – keyboard, Web Audio synth, embedded samples, mixer
 4. **World helpers** – tile lookups and collision
 5. **Game logic** – player, laser, dynamite, mining, enemies, game states
