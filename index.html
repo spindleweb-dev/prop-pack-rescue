@@ -1235,8 +1235,17 @@ function setupStations(def) {
   for (const [c, r, type] of def.deposits || []) {
     const x = c * TILE, y = r * TILE, floorY = (r + 1) * TILE;
     if (type === 'cart') {
-      const cx = x + 8;
-      stations.push({ type, c, r, cx, floorY, cap: 14, fill: 0, shake: 0,
+      let cx = x + 8;
+      // The cart sits in a gallery cut into the back wall; its rails run off into tunnel mouths at each end.
+      const rc0 = Math.floor(c / ROOM_COLS) * ROOM_COLS, open = cc => cc >= rc0 && cc < rc0 + ROOM_COLS &&
+        !isSolid(tileAt(cc, r)) && !isSolid(tileAt(cc, r - 1)) && isSolid(tileAt(cc, r + 1));
+      let cl = c, cr = c;
+      while (c - cl < 7 && open(cl - 1)) cl--;
+      while (cr - c < 7 && open(cr + 1)) cr++;
+      const gal = { x0: cl * TILE, x1: (cr + 1) * TILE, top: floorY - 27, floor: floorY };
+      cx = Math.max(gal.x0 + 30, Math.min(gal.x1 - 30, cx));               // keep it clear of the tunnel mouths
+      const exit = gal.x1 - cx >= cx - gal.x0 ? 1 : -1;                    // it leaves by the longer run of track
+      stations.push({ type, c, r, cx, floorY, exit, cap: 14, fill: 0, shake: 0, gal, ox: 0, v: 0, state: 'idle', t: 0, wheel: 0, trips: 0,
                       box: { x: cx - 14, y: floorY - 28, w: 28, h: 28 } });
     } else if (type === 'bucket') {
       let rc = r; while (rc > 0 && !isSolid(tileAt(c, rc - 1))) rc--;        // find the ceiling above
@@ -1279,7 +1288,7 @@ function deposit(st) {
   st.fill += n; satchel = [];
   if (st.type === 'bucket') { st.state = 'loading'; st.t = 0; }
   if (st.type === 'chute') st.openT = 1.1;
-  if (st.type === 'cart') st.shake = 0.4;
+  if (st.type === 'cart') { st.shake = 0.4; st.state = 'loaded'; st.t = 0; }
   tone(660, 0.08, 'triangle', 0.05); tone(990, 0.12, 'triangle', 0.05, 0, 0.09);
 }
 
@@ -1287,7 +1296,25 @@ function updateStations(dt) {
   if (fullMsgT > 0) fullMsgT -= dt;
   const p = player;
   for (const st of stations) {
-    if (st.type === 'cart') st.shake = Math.max(0, st.shake - dt);
+    if (st.type === 'cart') {
+      st.shake = Math.max(0, st.shake - dt); st.t += dt;
+      const G = st.gal, here = inCurrentRoom(st.cx, st.floorY);
+      if (st.state === 'loaded' && st.t > 0.9) {                     // gold has landed: give it a shove
+        st.state = 'leaving'; st.t = 0; st.v = 0;
+        if (here) { noiseBurst(0.12, 0.05); tone(90, 1.6, 'sawtooth', 0.022, 55); }
+      } else if (st.state === 'leaving') {                           // rolls off along the gallery, gathering speed
+        st.v = Math.min(70, st.v + 55 * dt); st.ox += st.exit * st.v * dt; st.wheel += st.exit * st.v * dt / 2.9;
+        if (st.cx + st.ox > G.x1 + 14 || st.cx + st.ox < G.x0 - 14) { st.state = 'away'; st.t = 0; st.fill = 0; st.trips++; }
+      } else if (st.state === 'away' && st.t > 0.8) {                // an empty cart comes back from the other end
+        st.state = 'arriving'; st.t = 0; st.from = st.exit > 0 ? G.x0 - 14 - st.cx : G.x1 + 14 - st.cx; st.ox = st.from;
+        if (here) tone(70, 1.8, 'sawtooth', 0.02, 95);
+      } else if (st.state === 'arriving') {
+        const k = Math.min(1, st.t / 2);
+        const nx = st.from * (1 - k) * (1 - k);          // eases out to a stop at its spot
+        st.wheel += (nx - st.ox) / 2.9; st.ox = nx;
+        if (k >= 1) { st.ox = 0; st.state = 'idle'; if (here) { noiseBurst(0.08, 0.05); tone(180, 0.08, 'triangle', 0.04); } }
+      }
+    }
     if (st.type === 'chute') {
       st.openT = Math.max(0, st.openT - dt);
       const target = st.openT > 0 ? 1 : 0;
@@ -1307,7 +1334,7 @@ function updateStations(dt) {
       }
       st.box.y = st.by - 6;
     }
-    const ready = st.type !== 'bucket' || st.state === 'idle';
+    const ready = st.type === 'chute' || st.state === 'idle';
     if (ready && satchel.length && state === 'playing' && overlap(p, st.box)) deposit(st);
   }
   for (const f of flyers) {
@@ -1734,15 +1761,26 @@ function drawDynamite() {
   if (Math.floor(globalT * 20) % 2) rect(dynamite.x, dynamite.y - 4, 3, 2, '#ffff60');
 }
 
-function drawStations() {   // classic: chunky carts, buckets and chutes
+function drawCarts() {      // classic: the back gallery and its cart, behind the play area
   for (const st of stations) {
-    if (st.type === 'cart') {
-      const x = Math.round(st.cx), y = st.floorY;
-      rect(x - 22, y - 2, 44, 1, '#605850');
-      rect(x - 10, y - 13, 20, 9, '#8a5a2a'); rect(x - 10, y - 13, 20, 1, '#504840');
-      rect(x - 7, y - 5, 3, 3, '#302820'); rect(x + 4, y - 5, 3, 3, '#302820');
-      if (st.fill) rect(x - 8, y - 15, 16, 2, '#ffd23a');
-    } else if (st.type === 'bucket') {
+    if (st.type !== 'cart') continue;
+    {
+      const G = st.gal, x = Math.round(st.cx + st.ox), y = st.floorY;
+      rect(G.x0, G.top, G.x1 - G.x0, y - G.top, 'rgba(0,0,0,0.35)');
+      rect(G.x0, y - 2, G.x1 - G.x0, 1, '#605850');
+      if (x - 10 > G.x0 + 3 && x + 10 < G.x1 - 3) {
+        rect(x - 10, y - 13, 20, 9, '#8a5a2a'); rect(x - 10, y - 13, 20, 1, '#504840');
+        rect(x - 7, y - 5, 3, 3, '#302820'); rect(x + 4, y - 5, 3, 3, '#302820');
+        if (st.fill) rect(x - 8, y - 15, 16, 2, '#ffd23a');
+      }
+      rect(G.x0, G.top + 4, 4, y - G.top - 4, '#000'); rect(G.x1 - 4, G.top + 4, 4, y - G.top - 4, '#000');
+    }
+  }
+}
+function drawStations() {   // classic: buckets and chutes
+  for (const st of stations) {
+    if (st.type === 'cart') continue;
+    else if (st.type === 'bucket') {
       rect(st.cx - 14, st.top, 28, 3, '#6a4626');
       rect(st.cx - 3, st.top + 3, 1, Math.max(0, Math.round(st.by - st.top - 6)), '#c8a466');
       rect(st.cx - 5, Math.round(st.by) - 3, 10, 9, '#8a6034'); rect(st.cx - 5, Math.round(st.by), 10, 1, '#3a3632');
@@ -2040,6 +2078,8 @@ function paintRoomHD() {
     }
   }
 
+  paintGalleriesHD(g);
+
   // 2. Ambient occlusion: soft shadows in open space next to rock
   for (let r = r0; r < r0 + ROOM_ROWS; r++) for (let c = c0; c < c0 + ROOM_COLS; c++) {
     const t = tileAt(c, r); if (isSolid(t)) continue;
@@ -2178,14 +2218,10 @@ function goldHeap(g, cx, baseY, width, height, seed) {   // a mound of nuggets
 }
 
 function drawCartHD(g, st) {
-  const { cx, floorY } = st, jig = st.shake > 0 ? Math.sin(globalT * 60) * 0.4 : 0;
-  // rails on timber sleepers across three tiles
-  for (let x = cx - 22; x <= cx + 20; x += 5.5) {
-    g.fillStyle = woodGrad(g, 0, floorY - 1.6, 0, floorY, '#5a3a1e'); g.fillRect(x, floorY - 1.6, 3.6, 1.8);
-  }
-  g.fillStyle = '#3a3836'; g.fillRect(cx - 24, floorY - 2.6, 48, 1.2);
-  g.fillStyle = 'rgba(220,220,210,0.45)'; g.fillRect(cx - 24, floorY - 2.6, 48, 0.35);
-  g.save(); g.translate(cx + jig, 0);
+  const { floorY } = st, G = st.gal, cx = st.cx + st.ox, jig = st.shake > 0 ? Math.sin(globalT * 60) * 0.4 : 0;
+  g.save(); g.beginPath(); g.rect(G.x0, G.top - 12, G.x1 - G.x0, floorY - G.top + 12); g.clip();
+  const moving = st.state === 'leaving' || st.state === 'arriving', rock = moving ? Math.sin(globalT * 38) * 0.25 : 0;
+  g.save(); g.translate(cx + jig, rock);
   // the cart body: tapered, plank sides, iron straps
   const top = floorY - 14, bot = floorY - 4.4;
   g.fillStyle = woodGrad(g, 0, top, 0, bot, '#80592e');
@@ -2206,11 +2242,89 @@ function drawCartHD(g, st) {
   for (const wx of [-6.2, 6.2]) {
     g.fillStyle = '#26221e'; g.beginPath(); g.arc(wx, floorY - 4.4, 2.9, 0, Math.PI * 2); g.fill();
     g.strokeStyle = '#6a6460'; g.lineWidth = 0.4; g.beginPath(); g.arc(wx, floorY - 4.4, 2.4, 0, Math.PI * 2); g.stroke();
-    g.beginPath(); for (let a = 0; a < 4; a++) { const an = a * Math.PI / 4; g.moveTo(wx + Math.cos(an) * 2.3, floorY - 4.4 + Math.sin(an) * 2.3); g.lineTo(wx - Math.cos(an) * 2.3, floorY - 4.4 - Math.sin(an) * 2.3); } g.stroke();
+    g.beginPath(); for (let a = 0; a < 4; a++) { const an = a * Math.PI / 4 + st.wheel; g.moveTo(wx + Math.cos(an) * 2.3, floorY - 4.4 + Math.sin(an) * 2.3); g.lineTo(wx - Math.cos(an) * 2.3, floorY - 4.4 - Math.sin(an) * 2.3); } g.stroke();
     g.fillStyle = '#8a8480'; g.beginPath(); g.arc(wx, floorY - 4.4, 0.6, 0, Math.PI * 2); g.fill();
   }
   g.restore();
-  if (st.fill >= st.cap) { g.globalCompositeOperation = 'lighter'; glow(g, cx, top + 2, 10, 'rgba(255,200,80,0.18)'); g.globalCompositeOperation = 'source-over'; }
+  if (st.fill >= st.cap && st.state !== 'away') { g.globalCompositeOperation = 'lighter'; glow(g, cx, top + 2, 10, 'rgba(255,200,80,0.18)'); g.globalCompositeOperation = 'source-over'; }
+  g.fillStyle = 'rgba(8,5,2,0.14)'; g.fillRect(G.x0, G.top, G.x1 - G.x0, floorY - G.top);   // it's set back from the play area
+  g.restore();
+  drawTunnelMouthsHD(g, st);
+}
+
+// Where the gallery's rails disappear into the rock: a timbered portal and darkness the cart rolls into.
+function drawTunnelMouthsHD(g, st) {
+  const G = st.gal, fy = G.floor, mt = G.top + 4;                       // the opening is a little lower than the gallery roof
+  for (const side of [-1, 1]) {
+    const ex = side < 0 ? G.x0 : G.x1, inner = ex - side * 17, pw = 3.4;
+    const px = side < 0 ? inner : inner - pw;                            // portal post on the gallery side of the mouth
+    // the tunnel beyond: near-black, deepening toward the rock
+    const dk = g.createLinearGradient(inner, 0, ex, 0);
+    dk.addColorStop(0, 'rgba(0,0,0,0.55)'); dk.addColorStop(0.5, 'rgba(0,0,0,0.9)'); dk.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = dk; g.fillRect(Math.min(inner, ex), mt, 17, fy - mt);
+    // receding rails and a faint far set of timbers to suggest depth
+    g.fillStyle = 'rgba(120,110,100,0.25)'; g.fillRect(Math.min(inner, ex), fy - 2.8, 9, 0.6);
+    g.fillStyle = 'rgba(90,60,30,0.3)'; g.fillRect(inner + side * 7, mt + 3, 1.2, fy - mt - 5); g.fillRect(inner + side * 4, mt + 3, side * 6, 1);
+    // rock face around the opening, between the portal and the gallery roof
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(Math.min(inner, ex), G.top, 17, mt - G.top);
+    // heavy portal set: post, lintel overhanging the mouth, and a corbel block
+    g.fillStyle = woodGrad(g, px, 0, px + pw, 0, '#74502c'); g.fillRect(px, mt - 1, pw, fy - mt + 1);
+    grain(g, px, mt, pw, fy - mt, st.c + side, 2);
+    g.fillStyle = 'rgba(255,220,170,0.15)'; g.fillRect(side < 0 ? px + pw - 0.5 : px, mt, 0.5, fy - mt);   // lamp-lit edge
+    const lx = Math.min(px, ex) - 1, lw = Math.abs(ex - px) + pw + 2;
+    g.fillStyle = woodGrad(g, 0, mt - 3.6, 0, mt, '#7a5430'); g.fillRect(lx, mt - 3.6, lw, 3.4);
+    g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(lx, mt - 0.2, lw, 0.8);
+    grain(g, lx, mt - 3.6, lw, 3.4, st.c + side * 3, 2);
+    rivet(g, px + pw / 2, mt - 1.8); rivet(g, px + pw / 2, fy - 3);
+    g.fillStyle = woodGrad(g, 0, mt - 1, 0, mt + 2.5, '#5e4022');        // corbel under the lintel
+    g.fillRect(side < 0 ? px + pw : px - 2.2, mt - 0.2, 2.2, 2.4);
+  }
+}
+
+// The gallery behind the play area (painted into the room cache): a dark recess, timber sets, lagging and rails.
+function paintGalleriesHD(g) {
+  for (const st of stations) {
+    if (st.type !== 'cart') continue;
+    const G = st.gal, w = G.x1 - G.x0, fy = G.floor;
+    if (!inRoom({ x: G.x0, y: G.top, w, h: fy - G.top })) continue;
+    g.save();
+    // recess with a rough, hand-cut roof line
+    g.beginPath(); g.moveTo(G.x0, fy); g.lineTo(G.x0, G.top + 2);
+    for (let x = G.x0; x <= G.x1; x += 3) g.lineTo(x, G.top + hash(st.c, x, 51) * 2.2);
+    g.lineTo(G.x1, fy); g.closePath();
+    const rg = g.createLinearGradient(0, G.top, 0, fy);
+    rg.addColorStop(0, 'rgba(4,2,1,0.82)'); rg.addColorStop(0.35, 'rgba(10,6,3,0.62)'); rg.addColorStop(1, 'rgba(14,9,4,0.5)');
+    g.fillStyle = rg; g.fill(); g.clip();
+    // lagging planks on the back wall between the sets
+    for (let y = G.top + 3; y < fy - 10; y += 2.6) {
+      g.fillStyle = `rgba(70,46,24,${0.22 + hash(st.c, y, 52) * 0.14})`; g.fillRect(G.x0, y, w, 2.1);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(G.x0, y + 2.1, w, 0.5);
+    }
+    // timber sets along the back wall
+    for (let x = G.x0 + 22; x < G.x1 - 18; x += 24) {
+      g.fillStyle = woodGrad(g, x, 0, x + 2.2, 0, '#4a321a'); g.fillRect(x, G.top + 2, 2.2, fy - G.top - 2);
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + 2.2, G.top + 3, 1, fy - G.top - 3);
+    }
+    g.fillStyle = woodGrad(g, 0, G.top + 1, 0, G.top + 4, '#523820'); g.fillRect(G.x0, G.top + 1.5, w, 2.4);
+    // a little lamp on one set, throwing warm light on the back wall
+    const lx = G.x0 + Math.min(w - 20, 34), ly = G.top + 9;
+    const lg = g.createRadialGradient(lx, ly, 0.5, lx, ly, 22);
+    lg.addColorStop(0, 'rgba(255,190,100,0.28)'); lg.addColorStop(1, 'rgba(255,170,80,0)');
+    g.fillStyle = lg; g.fillRect(lx - 22, G.top, 44, fy - G.top);
+    g.fillStyle = '#2a2420'; g.fillRect(lx - 1, ly - 2.5, 2, 1);
+    g.fillStyle = '#ffd890'; g.beginPath(); g.arc(lx, ly, 1, 0, Math.PI * 2); g.fill();
+    // ore spilled along the bed, ballast, sleepers and the rails themselves
+    g.fillStyle = 'rgba(40,30,22,0.8)'; g.fillRect(G.x0, fy - 1.6, w, 1.6);
+    for (let x = G.x0 + 1; x < G.x1; x += 5.5) {
+      g.fillStyle = woodGrad(g, 0, fy - 1.8, 0, fy, '#4e3218'); g.fillRect(x, fy - 1.8, 3.6, 1.8);
+    }
+    g.fillStyle = '#34322f'; g.fillRect(G.x0, fy - 2.8, w, 1.2);
+    g.fillStyle = 'rgba(220,220,210,0.35)'; g.fillRect(G.x0, fy - 2.8, w, 0.35);
+    // soft shadow under the roof
+    const sh = g.createLinearGradient(0, G.top, 0, G.top + 8); sh.addColorStop(0, 'rgba(0,0,0,0.5)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sh; g.fillRect(G.x0, G.top, w, 8);
+    g.restore();
+  }
 }
 
 function rope(g, x0, y0, x1, y1, w = 0.9) {          // twisted rope: two tones dashed along its length
@@ -2279,7 +2393,7 @@ function drawChuteHD(g, st) {
 
 function drawStationsHD(g) {
   for (const st of stations) {
-    if (st.type === 'cart') drawCartHD(g, st);
+    if (st.type === 'cart') continue;                // drawn earlier, behind everything
     else if (st.type === 'bucket') drawBucketHD(g, st);
     else drawChuteHD(g, st);
   }
@@ -2967,6 +3081,7 @@ function drawWorldHD() {
   const g = ctx;
   ensureRoomCache();
   g.drawImage(roomCanvas, roomX * VIEW_W, roomY * VIEW_H, VIEW_W, VIEW_H);
+  for (const st of stations) if (st.type === 'cart') drawCartHD(g, st);   // the back gallery sits behind the play area
   drawScorchesHD(g);
   drawLavaHD(g);
   drawWallDamageHD(g);
@@ -3074,7 +3189,7 @@ function render() {
     ctx.beginPath(); ctx.rect(0, 0, VIEW_W, VIEW_H); ctx.clip();
     ctx.translate(-roomX * VIEW_W + sx, -roomY * VIEW_H + sy);     // camera = current room (+ shake)
     if (HD) drawWorldHD();
-    else { drawTiles(); drawLanterns(); drawMiner(); drawEnemies(); drawDynamite(); drawStations(); drawNuggets(); drawPlayer(); drawParticles(); drawTextParticles(); }
+    else { drawTiles(); drawCarts(); drawLanterns(); drawMiner(); drawEnemies(); drawDynamite(); drawStations(); drawNuggets(); drawPlayer(); drawParticles(); drawTextParticles(); }
     ctx.restore();
     if (flash > 0) { ctx.globalAlpha = HD ? 0.55 * flash / 0.12 : 0.85; rect(0, 0, VIEW_W, VIEW_H, '#fff8e0'); ctx.globalAlpha = 1; }
     if (HD) {   // gentle vignette
