@@ -12,7 +12,11 @@
   canvas { background: #000; outline: none; cursor: pointer; }
   canvas.classic { image-rendering: pixelated; image-rendering: crisp-edges; }
   /* CRT mode: the screen sits in a dark plastic bezel with rounded glass corners */
-  canvas.crt { border-radius: 2.2% / 3.5%;
+  #crtWrap { position: relative; line-height: 0; }
+  #crtWrap canvas { display: block; }
+  #crtGL { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  #crtWrap.crt, #crtWrap.crt canvas { border-radius: 2.2% / 3.5%; }
+  #crtWrap.crt { overflow: hidden;
     box-shadow: 0 0 0 10px #141312, 0 0 0 12px #26241f, 0 0 0 13px #0a0a09, 0 18px 50px rgba(0,0,0,.9),
                 0 0 30px 6px rgba(120,160,140,.06); }
   #help { font-size: 13px; margin-top: 10px; text-align: center; opacity: .75; line-height: 1.6; }
@@ -615,7 +619,12 @@ const lowCtx = lowCanvas.getContext('2d');
 let ctx = mainCtx;                                // whichever one we're drawing into this frame
 let HD = true;                                    // true = ENHANCED graphics, false = CLASSIC
 const CRT = { on: true };   // old-TV look: scanlines, phosphor mask, glow, curved glass (C toggles)
-function applyGfxMode() { canvas.classList.toggle('classic', !HD); canvas.classList.toggle('crt', CRT.on); }
+function applyGfxMode() {
+  canvas.classList.toggle('classic', !HD);
+  const wrap = document.getElementById('crtWrap'), gl = document.getElementById('crtGL');
+  if (wrap) wrap.classList.toggle('crt', CRT.on);
+  if (gl) gl.style.display = CRT.on && typeof CRT_GL !== 'undefined' && CRT_GL ? 'block' : 'none';
+}
 
 const keys = {};      // true while a key is held
 const pressed = {};   // true only on the update step the key went down
@@ -2858,72 +2867,92 @@ function render() {
 }
 
 // ---------------------------------------------------------------------
-// CRT POST-PROCESS – runs on the finished 1280x800 frame
+// CRT POST-PROCESS – a WebGL shader over the finished frame
+// The 2D canvas still draws the game; a WebGL canvas laid on top of it takes that
+// frame as a texture and draws it through one shader pass on the graphics card:
+// curved glass, phosphor glow, scanlines, RGB grille, vignette and reflections.
+// Clicks pass straight through it to the game canvas underneath.
 // ---------------------------------------------------------------------
-const crtBuf = document.createElement('canvas');            // scratch copy for the curvature passes
-const crtBloom = document.createElement('canvas'); crtBloom.width = 160; crtBloom.height = 100;
-const bloomCtx = crtBloom.getContext('2d');
-let crtScan = null, crtMask = null, crtVig = null;
-function crtPatterns(W, H) {
-  const g = mainCtx, line = H / SCREEN_H;                    // device pixels per game row (4)
-  // scanlines: each game row is bright in the middle and dark at its lower edge
-  const sc = document.createElement('canvas'); sc.width = 1; sc.height = Math.round(line);
-  const sx = sc.getContext('2d');
-  for (let y = 0; y < sc.height; y++) {
-    const f = y / sc.height, a = f < 0.5 ? 0.02 : f < 0.75 ? 0.22 : 0.5;
-    sx.fillStyle = `rgba(0,0,0,${a})`; sx.fillRect(0, y, 1, 1);
-  }
-  crtScan = g.createPattern(sc, 'repeat');
-  // aperture grille: thin red/green/blue phosphor stripes
-  const mk = document.createElement('canvas'); mk.width = 3; mk.height = 1;
-  const mx = mk.getContext('2d');
-  ['#ff9a9a', '#9aff9a', '#9a9aff'].forEach((c, i) => { mx.fillStyle = c; mx.fillRect(i, 0, 1, 1); });
-  crtMask = g.createPattern(mk, 'repeat');
-  // vignette for the edges of the tube, plus a faint reflection on the glass
-  crtVig = document.createElement('canvas'); crtVig.width = W; crtVig.height = H;
-  const vx = crtVig.getContext('2d');
-  const v = vx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.7, 'rgba(0,0,0,0.25)'); v.addColorStop(1, 'rgba(0,0,0,0.75)');
-  vx.fillStyle = v; vx.fillRect(0, 0, W, H);
-  const gl = vx.createLinearGradient(0, 0, W * 0.6, H * 0.7);
-  gl.addColorStop(0, 'rgba(255,255,255,0.07)'); gl.addColorStop(0.45, 'rgba(255,255,255,0.015)'); gl.addColorStop(0.5, 'rgba(255,255,255,0)');
-  vx.fillStyle = gl; vx.fillRect(0, 0, W, H);
-}
+const crtWrap = document.createElement('div');
+crtWrap.id = 'crtWrap';
+canvas.parentNode.insertBefore(crtWrap, canvas); crtWrap.appendChild(canvas);
+const glCanvas = document.createElement('canvas');
+glCanvas.id = 'crtGL'; crtWrap.appendChild(glCanvas);
+const CRT_GL = (() => {
+  let gl = null;
+  try { gl = glCanvas.getContext('webgl', { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: false }); } catch (e) {}
+  if (!gl) return null;
+  const vs = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+  const fs = `precision mediump float;
+    varying vec2 uv; uniform sampler2D tex; uniform vec2 outRes; uniform float t, flick;
+    const vec2 GAME = vec2(320.0, 200.0);
+    vec2 bend(vec2 c){ c = c * 2.0 - 1.0; vec2 o = abs(c.yx) / vec2(5.5, 4.4); c += c * o * o; return c * 0.5 + 0.5; }
+    vec3 px(vec2 c){ return texture2D(tex, vec2(c.x, 1.0 - c.y)).rgb; }
+    void main(){
+      vec2 c = bend(uv);
+      if (c.x < 0.0 || c.y < 0.0 || c.x > 1.0 || c.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+      vec3 col = px(c);
+      // phosphor glow: a wide, cheap blur of the bright parts added back
+      vec2 r = 1.6 / GAME; vec3 bl = vec3(0.0);
+      bl += px(c + vec2( r.x, 0.0)) + px(c - vec2(r.x, 0.0)) + px(c + vec2(0.0,  r.y)) + px(c - vec2(0.0, r.y));
+      bl += px(c + r * 2.2) + px(c - r * 2.2) + px(c + vec2(r.x, -r.y) * 2.2) + px(c + vec2(-r.x, r.y) * 2.2);
+      bl /= 8.0;
+      col += bl * bl * 0.55;
+      // scanlines: each of the 200 game rows is bright through its middle, dark at its edges
+      float row = c.y * GAME.y, s = sin(fract(row) * 3.14159);
+      col *= mix(0.58, 1.18, s * s);
+      // aperture grille: fine red/green/blue phosphor stripes
+      float m = mod(gl_FragCoord.x, 3.0);
+      vec3 mask = m < 1.0 ? vec3(1.0, 0.78, 0.78) : m < 2.0 ? vec3(0.78, 1.0, 0.78) : vec3(0.78, 0.78, 1.0);
+      col *= mix(vec3(1.0), mask, 0.55) * 1.12;
+      // tube edges: darker toward the corners, with a soft fall-off at the glass edge
+      float v = c.x * c.y * (1.0 - c.x) * (1.0 - c.y);
+      col *= pow(clamp(v * 16.0, 0.0, 1.0), 0.28);
+      col *= smoothstep(0.0, 0.006, c.x) * smoothstep(0.0, 0.006, c.y) * smoothstep(0.0, 0.006, 1.0 - c.x) * smoothstep(0.0, 0.006, 1.0 - c.y);
+      // glass reflection, a slow rolling band and a touch of flicker
+      col += vec3(0.05) * smoothstep(0.55, 0.0, length(uv - vec2(0.18, 0.86)));
+      float band = fract(t * 0.07); col += vec3(0.022) * smoothstep(0.07, 0.0, abs(uv.y - (1.15 - band * 1.3)));
+      col *= flick;
+      gl_FragColor = vec4(col, 1.0);
+    }`;
+  const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) { console.warn(gl.getShaderInfoLog(o)); return null; } return o; };
+  const v = sh(gl.VERTEX_SHADER, vs), f = sh(gl.FRAGMENT_SHADER, fs);
+  if (!v || !f) return null;
+  const prog = gl.createProgram(); gl.attachShader(prog, v); gl.attachShader(prog, f); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+  gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const U = { outRes: gl.getUniformLocation(prog, 'outRes'), t: gl.getUniformLocation(prog, 't'), flick: gl.getUniformLocation(prog, 'flick') };
+  return {
+    draw() {
+      // the shader's output resolution follows the on-screen size, so the grille stays sharp
+      const k = Math.min(window.devicePixelRatio || 1, 2560 / Math.max(1, glCanvas.clientWidth));   // capped for 4K screens
+      const w = Math.round(glCanvas.clientWidth * k) || canvas.width, h = Math.round(glCanvas.clientHeight * k) || canvas.height;
+      if (glCanvas.width !== w || glCanvas.height !== h) { glCanvas.width = w; glCanvas.height = h; }
+      gl.viewport(0, 0, w, h);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);   // this frame, straight from the game canvas
+      gl.uniform2f(U.outRes, w, h); gl.uniform1f(U.t, globalT); gl.uniform1f(U.flick, 0.985 + 0.015 * Math.random());
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    },
+    lost: () => gl.isContextLost(),
+  };
+})();
 function crtPost() {
-  const g = mainCtx, W = canvas.width, H = canvas.height;
-  if (!crtScan || crtVig.width !== W) crtPatterns(W, H);
-  if (crtBuf.width !== W) { crtBuf.width = W; crtBuf.height = H; }
-  const b = crtBuf.getContext('2d'), K = 0.035, N = 80;
-  // Read the finished frame once: a tiny blurry copy for the glow, and the rows of the curved glass
-  bloomCtx.imageSmoothingEnabled = true; bloomCtx.globalCompositeOperation = 'copy';
-  bloomCtx.drawImage(canvas, 0, 0, 160, 100);
-  b.setTransform(1, 0, 0, 1, 0, 0); b.globalAlpha = 1; b.globalCompositeOperation = 'source-over';
-  b.fillStyle = '#000'; b.fillRect(0, 0, W, H);
-  for (let i = 0; i < N; i++) {                             // rows: narrower near top and bottom (barrel shape)
-    const y0 = i * H / N, h = H / N, d = (y0 + h / 2 - H / 2) / (H / 2), w = W * (1 - K * d * d);
-    b.drawImage(canvas, 0, y0, W, h, (W - w) / 2, y0, w, h + 0.5);
+  if (CRT_GL && !CRT_GL.lost()) { CRT_GL.draw(); return; }
+  // No WebGL: a light 2D version – just scanlines over the frame
+  if (!crtPost.scan) {
+    const sc = document.createElement('canvas'); sc.width = 1; sc.height = 4; const sx = sc.getContext('2d');
+    [0.02, 0.02, 0.22, 0.5].forEach((a, y) => { sx.fillStyle = `rgba(0,0,0,${a})`; sx.fillRect(0, y, 1, 1); });
+    crtPost.scan = mainCtx.createPattern(sc, 'repeat');
   }
-  // phosphor glow, scanlines and the RGB mask go on before the columns pass, so they curve with the glass
-  b.imageSmoothingEnabled = true; b.globalCompositeOperation = 'screen'; b.globalAlpha = 0.32;
-  b.drawImage(crtBloom, 0, 0, W, H);
-  b.globalAlpha = 1; b.globalCompositeOperation = 'source-over'; b.fillStyle = crtScan; b.fillRect(0, 0, W, H);
-  b.globalCompositeOperation = 'multiply'; b.globalAlpha = 0.28; b.fillStyle = crtMask; b.fillRect(0, 0, W, H);
-  b.globalCompositeOperation = 'source-over'; b.globalAlpha = 1;
-  // columns: shorter near the left and right edges, drawn back onto the screen
-  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-  g.imageSmoothingEnabled = true; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-  for (let i = 0; i < N; i++) {
-    const x0 = i * W / N, w = W / N, d = (x0 + w / 2 - W / 2) / (W / 2), h = H * (1 - K * 1.3 * d * d);
-    g.drawImage(crtBuf, x0, 0, w, H, x0, (H - h) / 2, w + 0.5, h);
-  }
-  // tube edges, glass reflection, a slow rolling band and a hint of flicker
-  g.drawImage(crtVig, 0, 0);
-  const band = ((globalT * 0.12) % 1.3 - 0.15) * H;
-  const rb = g.createLinearGradient(0, band - 60, 0, band + 60);
-  rb.addColorStop(0, 'rgba(255,255,255,0)'); rb.addColorStop(0.5, 'rgba(255,255,255,0.025)'); rb.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = rb; g.fillRect(0, band - 60, W, 120);
-  g.fillStyle = `rgba(0,0,0,${0.015 + 0.02 * Math.random()})`; g.fillRect(0, 0, W, H);
-  g.restore();
+  const g = mainCtx; g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.fillStyle = crtPost.scan; g.fillRect(0, 0, canvas.width, canvas.height); g.restore();
 }
 
 // ---------------------------------------------------------------------
