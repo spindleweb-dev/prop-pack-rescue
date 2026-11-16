@@ -2102,17 +2102,71 @@ function drawScorchesHD(g) {
 }
 
 // ---- The hero, drawn around his feet so he can lean and face either way
-function drawLegHD(g, ox, ang, color) {
-  g.save(); g.translate(ox, -7.5); g.rotate(ang);
-  g.fillStyle = color; rr(g, -1.2, 0, 2.4, 5.6, 1); g.fill();
-  g.fillStyle = '#4a2a12'; rr(g, -1.3, 4.8, 3.6, 2.2, 0.8); g.fill();
-  g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(-1.1, 4.9, 3, 0.5);
+// ---- Hero run cycle ---------------------------------------------------------
+// Angles are measured from straight down; positive swings the limb forward (the way the hero faces).
+const LEG = { thigh: 3.3, shin: 3.2, boot: 1.0, hipY: -7.5 };
+const pt = (x, y, len, a) => [x + Math.sin(a) * len, y + Math.cos(a) * len];
+function legPose(phase, sp, inAir, side) {
+  if (inAir) {                                   // flying: legs hang loose, one a little ahead
+    const sway = side * 0.12;
+    return { hip: 0.28 + sway, knee: 0.55 - sway * 1.5 };
+  }
+  const s = Math.sin(phase), c = Math.cos(phase);
+  const hip = 0.62 * sp * s + 0.04 * sp;                                        // stride
+  const knee = sp * (0.18 + 1.25 * Math.pow(Math.max(0, c), 1.4)) + 0.04;       // folds while swinging through
+  return { hip, knee };
+}
+function legGeom(hx, hy, pose) {
+  const knee = pt(hx, hy, LEG.thigh, pose.hip);
+  const shinA = pose.hip - pose.knee;
+  const ankle = pt(knee[0], knee[1], LEG.shin, shinA);
+  return { knee, ankle, shinA };
+}
+function limb(g, x1, y1, x2, y2, w, col) {
+  g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+}
+function drawLegJointed(g, hx, hy, geo, near, toe) {
+  const cT = near ? '#2f55c4' : '#22408f', cS = near ? '#2a4cb0' : '#1d3880';
+  limb(g, hx, hy, geo.knee[0], geo.knee[1], 2.5, cT);                          // thigh
+  limb(g, geo.knee[0], geo.knee[1], geo.ankle[0], geo.ankle[1], 2.2, cS);       // shin
+  if (near) {                                                                   // a crease of light down the front
+    g.strokeStyle = 'rgba(160,190,255,0.25)'; g.lineWidth = 0.45;
+    g.beginPath(); g.moveTo(hx + 0.6, hy); g.lineTo(geo.knee[0] + 0.6, geo.knee[1]); g.lineTo(geo.ankle[0] + 0.5, geo.ankle[1]); g.stroke();
+  }
+  // boot: follows the shin a little, toes up as the foot swings through, flat when planted
+  g.save(); g.translate(geo.ankle[0], geo.ankle[1]); g.rotate(geo.shinA * 0.35 + toe);
+  g.fillStyle = near ? '#4a2a12' : '#3a200c'; rr(g, -1.3, -0.5, 3.7, 1.9, 0.8); g.fill();
+  g.fillStyle = '#20140a'; g.fillRect(-1.3, 1.0, 3.7, 0.5);                    // sole
+  if (near) { g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(-1, -0.4, 2.8, 0.45); }
   g.restore();
+}
+function drawArmJointed(g, sx, sy, upper, elbow, near) {
+  const e = pt(sx, sy, 3.0, upper), h = pt(e[0], e[1], 2.7, upper + elbow);
+  limb(g, sx, sy, e[0], e[1], 2.2, near ? '#d24420' : '#9a2e14');               // sleeve
+  limb(g, e[0], e[1], h[0], h[1], 1.9, near ? '#c63c1c' : '#8a2810');
+  g.fillStyle = near ? '#f2b98c' : '#c8906a'; g.beginPath(); g.arc(h[0], h[1], 1.05, 0, Math.PI * 2); g.fill();
 }
 function drawHeroHD(g, x, y, f, o) {
   g.save();
-  g.translate(x + PW / 2, y + PH); g.scale(f, 1); g.rotate(o.lean || 0);
-  const swing = o.inAir ? 0 : Math.sin(o.walkT * 14) * 0.6 * Math.min(1, Math.abs(o.vx) / 40);
+  g.translate(x + PW / 2, y + PH); g.scale(f, 1);
+  const sp = o.inAir ? 0 : Math.min(1, Math.abs(o.vx) / 85);        // 0 standing … 1 full run
+  const ph = o.walkT * 14;
+  const poseN = legPose(ph, sp, o.inAir, 1), poseF = legPose(ph + Math.PI, sp, o.inAir, -1);
+  const hipN = [0.8, LEG.hipY], hipF = [-0.8, LEG.hipY];
+  const gN = legGeom(hipN[0], hipN[1], poseN), gF = legGeom(hipF[0], hipF[1], poseF);
+  // the body rides on whichever foot is on the ground, so it dips and rises through each stride
+  let drop = 0;
+  if (!o.inAir) drop = -Math.max(gN.ankle[1], gF.ankle[1]) - LEG.boot - 0.5;
+  const breathe = sp < 0.05 && !o.inAir ? Math.sin(globalT * 2.2) * 0.18 : 0;
+  g.translate(0, -drop + breathe);
+  g.rotate((o.lean || 0) + sp * 0.1);                                 // lean into a run
+  const toeN = o.inAir ? 0.25 : -0.35 * sp * Math.max(0, Math.cos(ph)), toeF = o.inAir ? 0.15 : -0.35 * sp * Math.max(0, Math.cos(ph + Math.PI));
+  // arms swing against the legs, elbows bend more the faster you go
+  const armSw = o.inAir ? 0 : -0.75 * sp * Math.sin(ph);
+  const elbow = o.inAir ? 0.5 : 0.35 + 1.0 * sp;
+  // far arm first (behind the body)
+  drawArmJointed(g, -0.6, -14.2, -armSw - (o.inAir ? 0.5 : 0) , elbow, false);
 
   // backpack + rotor mast
   const bp = g.createLinearGradient(-6.5, 0, -2.5, 0); bp.addColorStop(0, '#59606b'); bp.addColorStop(1, '#a3abb8');
@@ -2120,9 +2174,9 @@ function drawHeroHD(g, x, y, f, o) {
   g.fillStyle = '#3d424a'; g.fillRect(-6, -10, 3, 0.7);
   g.strokeStyle = '#b8bec8'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(-4.4, -15.6); g.lineTo(-1.2, -24.4); g.stroke();
 
-  // legs (back leg first, a bit darker)
-  drawLegHD(g, -0.9, o.inAir ? 0.45 : swing, '#24409a');
-  drawLegHD(g, 0.9, o.inAir ? 0.2 : -swing, '#2f55c4');
+  // legs: far leg first, a bit darker
+  drawLegJointed(g, hipF[0], hipF[1], gF, false, toeF);
+  drawLegJointed(g, hipN[0], hipN[1], gN, true, toeN);
 
   // torso
   const tg = g.createLinearGradient(-3.3, 0, 3.4, 0);
@@ -2131,15 +2185,10 @@ function drawHeroHD(g, x, y, f, o) {
   g.fillStyle = '#3a2414'; g.fillRect(-3.3, -8.7, 6.7, 1.3);
   g.fillStyle = '#e8c040'; g.fillRect(0.6, -8.6, 1.4, 1.1);
 
-  // arm: straight out when firing the laser, swinging otherwise
+  // near arm: straight out when firing the laser, swinging otherwise
   g.fillStyle = '#c63c1c';
   if (o.firing) { rr(g, 0.4, -13.8, 5.2, 2.3, 1); g.fill(); g.fillStyle = '#f2b98c'; g.beginPath(); g.arc(5.8, -12.65, 1.15, 0, Math.PI * 2); g.fill(); }
-  else {
-    g.save(); g.translate(0.9, -14); g.rotate(-swing * 0.7 + (o.inAir ? -0.6 : 0.1));
-    rr(g, -1.1, 0, 2.3, 5.2, 1); g.fill();
-    g.fillStyle = '#f2b98c'; g.beginPath(); g.arc(0.05, 5.7, 1.1, 0, Math.PI * 2); g.fill();
-    g.restore();
-  }
+  else drawArmJointed(g, 1.0, -14.2, armSw + (o.inAir ? -0.6 : 0.05), elbow, true);
 
   // head
   g.fillStyle = '#f2b98c'; g.beginPath(); g.ellipse(1.2, -17.4, 2.7, 2.5, 0, 0, Math.PI * 2); g.fill();
