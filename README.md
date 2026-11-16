@@ -17,6 +17,7 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 | M | Mute |
 | G | Switch Classic (chunky 320×200) / Enhanced (4× HD) graphics |
 | T | Realistic textures and natural details (moss, grass, puddles) on/off |
+| C | CRT screen on/off (scanlines, RGB phosphor mask, glow, curved glass, bezel) |
 | 1–9, 0 | Testing: jump straight to level 1–10 (also buttons in the tuning panel) |
 
 ## Features
