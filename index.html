@@ -2640,6 +2640,107 @@ function drawWorldHD() {
   drawTextHD(g);
 }
 
+// ---- Status-bar icons (Enhanced mode): small, but shaded like real objects ----
+function hudHelmet(g, x, y, i) {        // a miner's hard hat seen from the front-left, with a headlamp
+  g.save();
+  g.fillStyle = 'rgba(0,0,0,0.45)'; g.beginPath(); g.ellipse(x + 0.6, y + 1.3, 4.9, 1.1, 0, 0, Math.PI * 2); g.fill();   // shadow
+  // brim: a flat ellipse, lit on top, dark underneath
+  const bg = g.createLinearGradient(0, y - 0.8, 0, y + 1.2); bg.addColorStop(0, '#f2c840'); bg.addColorStop(1, '#8a6008');
+  g.fillStyle = bg; g.beginPath(); g.ellipse(x, y, 5, 1.25, 0, 0, Math.PI * 2); g.fill();
+  // dome: lit from the upper left, with a moulded ridge running front to back
+  const dg = g.createRadialGradient(x - 1.6, y - 4.2, 0.3, x, y - 1.8, 4.6);
+  dg.addColorStop(0, '#fffbd0'); dg.addColorStop(0.3, '#ffe24a'); dg.addColorStop(0.75, '#d9a412'); dg.addColorStop(1, '#8e6406');
+  g.fillStyle = dg; g.beginPath(); g.moveTo(x - 3.9, y - 0.2);
+  g.bezierCurveTo(x - 3.9, y - 5.6, x + 3.9, y - 5.6, x + 3.9, y - 0.2); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(150,100,10,0.7)'; g.lineWidth = 0.35;
+  g.beginPath(); g.moveTo(x + 0.2, y - 4.3); g.quadraticCurveTo(x + 0.6, y - 2, x + 0.4, y - 0.3); g.stroke();
+  g.strokeStyle = 'rgba(255,250,200,0.55)'; g.lineWidth = 0.25;
+  g.beginPath(); g.moveTo(x - 0.2, y - 4.3); g.quadraticCurveTo(x + 0.2, y - 2, x, y - 0.3); g.stroke();
+  // rim where the dome meets the brim
+  g.fillStyle = 'rgba(110,70,0,0.6)'; g.beginPath(); g.ellipse(x, y - 0.2, 3.95, 0.55, 0, 0, Math.PI * 2); g.fill();
+  // lamp bracket and headlamp on the front, lens glowing
+  g.fillStyle = '#5a4a30'; g.fillRect(x - 2.6, y - 3.3, 1.3, 1.9);
+  g.fillStyle = '#3a3634'; g.beginPath(); g.arc(x - 1.9, y - 2.6, 1.25, 0, Math.PI * 2); g.fill();
+  const lg = g.createRadialGradient(x - 2.1, y - 2.8, 0.1, x - 1.9, y - 2.6, 0.95);
+  lg.addColorStop(0, '#ffffff'); lg.addColorStop(0.5, '#fff2b0'); lg.addColorStop(1, '#c09a40');
+  g.fillStyle = lg; g.beginPath(); g.arc(x - 1.9, y - 2.6, 0.9, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = 'lighter'; glow(g, x - 1.9, y - 2.6, 2.6, 'rgba(255,240,180,0.25)'); g.globalCompositeOperation = 'source-over';
+  // specular highlight and a couple of scuffs (different on each hat)
+  g.fillStyle = 'rgba(255,255,255,0.75)'; g.beginPath(); g.ellipse(x - 1.3, y - 4, 1.1, 0.45, -0.5, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(90,60,10,0.45)'; g.lineWidth = 0.2;
+  for (let k = 0; k < 2; k++) { const sx = x + 0.8 + hash(i, k, 7) * 2.2, sy = y - 1.2 - hash(i, k, 8) * 2.4;
+    g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + 0.7, sy + 0.25); g.stroke(); }
+  g.restore();
+}
+
+function hudDynamite(g, x, y, i) {      // a paper-wrapped stick with a printed band, crimped end and fuse
+  const w = 3.6, h = 9.2, tilt = (hash(i, 3, 9) - 0.5) * 0.12;
+  g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(tilt); g.translate(-w / 2, -h / 2);
+  g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0.7, 0.8, w, h);                      // shadow
+  // red paper tube, lit from the left
+  const pg = g.createLinearGradient(0, 0, w, 0);
+  pg.addColorStop(0, '#ff7a5a'); pg.addColorStop(0.3, '#e02a1a'); pg.addColorStop(0.75, '#a01408'); pg.addColorStop(1, '#5a0a04');
+  g.fillStyle = pg; rr(g, 0, 0, w, h, 0.6); g.fill();
+  // spiral paper seam
+  g.strokeStyle = 'rgba(60,0,0,0.35)'; g.lineWidth = 0.18;
+  for (let k = 0; k < 4; k++) { const sy = 1.6 + k * 2; g.beginPath(); g.moveTo(0, sy + 0.6); g.lineTo(w, sy - 0.4); g.stroke(); }
+  // cream label band with tiny printing
+  const lb = g.createLinearGradient(0, 0, w, 0); lb.addColorStop(0, '#fff4d8'); lb.addColorStop(0.6, '#e2d2a8'); lb.addColorStop(1, '#8a7a58');
+  g.fillStyle = lb; g.fillRect(0, 3.4, w, 2.4);
+  g.fillStyle = 'rgba(150,20,10,0.85)'; g.fillRect(0.5, 4.15, w - 1, 0.35); g.fillRect(0.5, 4.8, w - 1.6, 0.3);
+  g.fillStyle = 'rgba(60,40,20,0.5)'; g.fillRect(0, 3.4, w, 0.2); g.fillRect(0, 5.6, w, 0.2);
+  // crimped paper end at the top
+  g.fillStyle = '#b8a888'; g.beginPath(); g.ellipse(w / 2, 0.15, w / 2, 0.55, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(90,70,40,0.6)'; g.lineWidth = 0.15;
+  for (let k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(w / 2, 0.15); g.lineTo(w / 2 + k * 1.5, -0.2); g.stroke(); }
+  // a glossy streak down the paper
+  g.fillStyle = 'rgba(255,220,200,0.35)'; g.fillRect(0.7, 0.8, 0.45, h - 1.6);
+  // braided fuse curling out of the top
+  g.strokeStyle = '#5a5048'; g.lineWidth = 0.55;
+  g.beginPath(); g.moveTo(w / 2, 0); g.bezierCurveTo(w / 2 + 0.3, -1.2, w / 2 + 1.6, -1.4, w / 2 + 1.4, -2.6); g.stroke();
+  g.strokeStyle = 'rgba(200,190,170,0.6)'; g.lineWidth = 0.2; g.setLineDash([0.35, 0.35]);
+  g.beginPath(); g.moveTo(w / 2, 0); g.bezierCurveTo(w / 2 + 0.3, -1.2, w / 2 + 1.6, -1.4, w / 2 + 1.4, -2.6); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle = '#e8e0d0'; g.beginPath(); g.arc(w / 2 + 1.4, -2.6, 0.3, 0, Math.PI * 2); g.fill();      // frayed tip
+  g.restore();
+}
+
+function hudCoin(g, x, y) {             // a minted gold coin, slightly tilted so its thickness shows
+  const r = 4.1, ry = 3.9, th = 0.9;
+  g.save();
+  g.fillStyle = 'rgba(0,0,0,0.5)'; g.beginPath(); g.ellipse(x + 0.7, y + th + 0.9, r, ry, 0, 0, Math.PI * 2); g.fill();
+  // edge (thickness) with reeding
+  g.fillStyle = '#7a5404'; g.beginPath(); g.ellipse(x, y + th, r, ry, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(255,220,120,0.45)'; g.lineWidth = 0.18;
+  for (let a = 0.15; a < Math.PI - 0.1; a += 0.2) { const ex = x + Math.cos(a) * r, ey = y + Math.sin(a) * ry; g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex, ey + th); g.stroke(); }
+  // face
+  const fg = g.createRadialGradient(x - 1.5, y - 1.6, 0.2, x, y, r);
+  fg.addColorStop(0, '#fff8c0'); fg.addColorStop(0.35, '#ffd84a'); fg.addColorStop(0.8, '#d39c12'); fg.addColorStop(1, '#9a6a06');
+  g.fillStyle = fg; g.beginPath(); g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2); g.fill();
+  // raised rim and a ring of beads
+  g.strokeStyle = '#b07e0a'; g.lineWidth = 0.5; g.beginPath(); g.ellipse(x, y, r - 0.55, ry - 0.55, 0, 0, Math.PI * 2); g.stroke();
+  g.strokeStyle = 'rgba(255,245,190,0.6)'; g.lineWidth = 0.22; g.beginPath(); g.ellipse(x, y, r - 0.3, ry - 0.3, 0, Math.PI * 0.9, Math.PI * 1.6); g.stroke();
+  g.fillStyle = 'rgba(140,95,5,0.7)';
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) { g.beginPath(); g.arc(x + Math.cos(a) * (r - 1.2), y + Math.sin(a) * (ry - 1.2), 0.17, 0, Math.PI * 2); g.fill(); }
+  // embossed $: dark shadow down-right, light edge up-left, then the gold relief
+  const ft = 'bold 5.2px monospace'; g.font = ft; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = 'rgba(90,55,0,0.95)'; g.fillText('$', x + 0.35, y + 0.4);
+  g.fillStyle = 'rgba(255,250,210,0.9)'; g.fillText('$', x - 0.2, y - 0.2);
+  g.fillStyle = '#d9a018'; g.fillText('$', x, y + 0.05);
+  // a glint that sweeps across every few seconds
+  const ph = (globalT % 4) / 0.6;
+  if (ph < 1) {
+    g.save(); g.beginPath(); g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2); g.clip();
+    const gx = x - r - 2 + ph * (2 * r + 4);
+    const sg = g.createLinearGradient(gx - 1.5, y - r, gx + 1.5, y + r);
+    sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,240,0.75)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = sg; g.beginPath(); g.moveTo(gx - 1, y - r); g.lineTo(gx + 1.2, y - r); g.lineTo(gx + 0.2, y + r); g.lineTo(gx - 2, y + r); g.fill();
+    g.restore();
+  }
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(x - 1.9, y - 1.9, 0.45, 0, Math.PI * 2); g.fill();   // specular point
+  g.restore();
+}
+
 function drawHUDHD() {
   const g = ctx, y = VIEW_H;
   const bg = g.createLinearGradient(0, y, 0, SCREEN_H); bg.addColorStop(0, '#22222a'); bg.addColorStop(1, '#0c0c10');
@@ -2656,23 +2757,9 @@ function drawHUDHD() {
     g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(35.5, y + 4.8, Math.max(0, 103 * frac - 2), 1.2);
   }
   text('LEVEL ' + (levelIndex + 1) + '  ·  ENHANCED [G]', 316, y + 3.5, '#9a9aa8', 6.5, 'right');
-  for (let i = 0; i < Math.min(lives, 8); i++) {   // spare heroes as little helmets
-    const hx = 9 + i * 10, hy = y + 20;
-    const hg = g.createLinearGradient(0, hy - 4, 0, hy); hg.addColorStop(0, '#fff48a'); hg.addColorStop(1, '#d6a516');
-    g.fillStyle = hg; g.beginPath(); g.arc(hx, hy, 3.6, Math.PI, 0); g.closePath(); g.fill();
-    g.fillStyle = '#b88a0c'; g.fillRect(hx - 4.2, hy - 0.4, 8.4, 1.1);
-  }
-  for (let i = 0; i < dynamiteLeft; i++) {          // dynamite sticks
-    const dx = 92 + i * 6, dy = y + 13.5;
-    g.fillStyle = '#d82a20'; rr(g, dx, dy, 3, 8, 0.8); g.fill();
-    g.fillStyle = '#d8c890'; g.fillRect(dx, dy + 2.5, 3, 0.8);
-    g.strokeStyle = '#ccc'; g.lineWidth = 0.4; g.beginPath(); g.moveTo(dx + 1.5, dy); g.lineTo(dx + 2.3, dy - 1.6); g.stroke();
-  }
-  // money: a little gold coin + amount
-  const cg = g.createRadialGradient(145, y + 16, 0.3, 146, y + 17.5, 4);
-  cg.addColorStop(0, '#fff6b0'); cg.addColorStop(0.5, '#ffd23a'); cg.addColorStop(1, '#a87808');
-  g.fillStyle = cg; g.beginPath(); g.arc(146, y + 17.5, 3.6, 0, Math.PI * 2); g.fill();
-  text('$', 146, y + 14.7, '#7a5200', 5.5, 'center');
+  for (let i = 0; i < Math.min(lives, 8); i++) hudHelmet(g, 9 + i * 10.5, y + 20.5, i);   // spare heroes
+  for (let i = 0; i < dynamiteLeft; i++) hudDynamite(g, 96 + i * 5.6, y + 13.6, i);         // sticks left
+  hudCoin(g, 146, y + 17.5);
   text(money.toLocaleString('en-US'), 152, y + 13.5, '#ffd23a', 9);
   g.shadowColor = 'rgba(255,200,80,0.6)'; g.shadowBlur = 8;
   text(String(score).padStart(6, '0'), 316, y + 12.5, '#ffffff', 10, 'right');
