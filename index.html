@@ -1243,15 +1243,20 @@ function setupStations(def) {
       while (c - cl < 7 && open(cl - 1)) cl--;
       while (cr - c < 7 && open(cr + 1)) cr++;
       const gal = { x0: cl * TILE, x1: (cr + 1) * TILE, top: floorY - 27, floor: floorY };
-      cx = Math.max(gal.x0 + 30, Math.min(gal.x1 - 30, cx));               // keep it clear of the tunnel mouths
-      const exit = gal.x1 - cx >= cx - gal.x0 ? 1 : -1;                    // it leaves by the longer run of track
+      const near = cx - gal.x0 <= gal.x1 - cx ? -1 : 1;                    // which end of the gallery it's nearer
+      cx = near < 0 ? gal.x0 + 30 : gal.x1 - 30;                           // it waits at the far reach of the track…
+      const exit = -near;                                                  // …and rolls the whole length to leave
       stations.push({ type, c, r, cx, floorY, exit, cap: 14, fill: 0, shake: 0, gal, ox: 0, v: 0, state: 'idle', t: 0, wheel: 0, trips: 0,
                       box: { x: cx - 14, y: floorY - 28, w: 28, h: 28 } });
     } else if (type === 'bucket') {
-      let rc = r; while (rc > 0 && !isSolid(tileAt(c, rc - 1))) rc--;        // find the ceiling above
+      const h = planHoist(c, r);
+      const hc = h ? h.c : c, hx = hc * TILE;
+      let rc = r; while (rc > 0 && !isSolid(tileAt(hc, rc - 1))) rc--;      // find the ceiling above
       const top = rc * TILE, rest = floorY - 13;                              // bucket hangs at reachable height
-      stations.push({ type, c, r, cx: x + 8, top, rest, by: rest, state: 'idle', t: 0, fill: 0, spin: 0,
-                      box: { x: x - 2, y: rest - 6, w: 20, h: 20 } });
+      const cxx = hx + 8, dir = h ? h.dir : 1, wallX = h ? h.wallX : cxx + 40;
+      stations.push({ type, c: hc, r, cx: cxx, top, rest, by: rest, state: 'idle', t: 0, fill: 0, spin: 0,
+                      dir, wallX, hopX: wallX - dir * 8, tx: cxx, tilt: 0, swing: 0, hop: 0, slide: [],
+                      box: { x: hx - 2, y: rest - 6, w: 20, h: 20 } });
     } else if (type === 'chute') {
       const dir = isSolid(tileAt(c - 1, r)) ? 1 : -1;                        // which wall it's set into
       const wx = dir > 0 ? x : x + TILE;
@@ -1259,6 +1264,31 @@ function setupStations(def) {
                       box: { x: dir > 0 ? wx : wx - 16, y: y - 4, w: 16, h: 24 } });
     }
   }
+}
+
+// Pick a column for the bucket hoist on the same floor, 2–6 tiles from a rock wall at ceiling height,
+// so its trolley can run along the roof to a hopper fixed to that wall.
+function planHoist(c, r) {
+  const room0 = Math.floor(c / ROOM_COLS) * ROOM_COLS, inR = cc => cc >= room0 && cc < room0 + ROOM_COLS;
+  const floorOk = cc => inR(cc) && !isSolid(tileAt(cc, r)) && isSolid(tileAt(cc, r + 1));
+  const ceil = cc => { let rc = r; while (rc > 0 && !isSolid(tileAt(cc, rc - 1))) rc--; return rc; };
+  const wallFrom = (cc, d) => {
+    const rc = ceil(cc); if (r - rc < 2) return null;                     // too low for a hoist
+    for (let n = cc + d, k = 1; k <= 6 && inR(n); n += d, k++) {
+      if (isSolid(tileAt(n, rc))) return k >= 2 ? { k, wallX: d > 0 ? n * TILE : (n + 1) * TILE } : null;
+      if (!isSolid(tileAt(n, rc - 1)) || isSolid(tileAt(n, rc + 1))) return null;   // roof must carry the track
+    }
+    return null;
+  };
+  for (let off = 0; off <= 9; off++) for (const s of off ? [-1, 1] : [1]) {
+    const cc = c + s * off;
+    let ok = true; for (let q = Math.min(c, cc); q <= Math.max(c, cc); q++) if (!floorOk(q)) ok = false;   // walkable from the original spot
+    if (!ok) continue;
+    let best = null;
+    for (const d of [-1, 1]) { const w = wallFrom(cc, d); if (w && (!best || w.k < best.k)) best = { c: cc, dir: d, wallX: w.wallX, k: w.k }; }
+    if (best) return best;
+  }
+  return null;
 }
 
 function pickUpNugget(n) {
@@ -1278,7 +1308,7 @@ function pickUpNugget(n) {
 function deposit(st) {
   const n = satchel.length, value = satchelValue();
   const bonus = n >= BIG_HAUL ? Math.round(value * BIG_HAUL_BONUS) : 0;
-  const tx = st.type === 'cart' ? st.cx : st.type === 'bucket' ? st.cx : st.wx + st.dir * 3;
+  const tx = st.type === 'cart' ? st.cx : st.type === 'bucket' ? st.cx - st.dir * 2.5 : st.wx + st.dir * 3;
   const ty = st.type === 'cart' ? st.floorY - 13 : st.type === 'bucket' ? st.by + 2 : st.cy;
   satchel.forEach((k, i) => flyers.push({ kind: k, x0: player.x + PW / 2, y0: player.y + 10, x1: tx + rnd(-3, 3), y1: ty,
                                           t: -i * 0.07, dur: 0.38, st }));
@@ -1306,10 +1336,10 @@ function updateStations(dt) {
         st.v = Math.min(70, st.v + 55 * dt); st.ox += st.exit * st.v * dt; st.wheel += st.exit * st.v * dt / 2.9;
         if (st.cx + st.ox > G.x1 + 14 || st.cx + st.ox < G.x0 - 14) { st.state = 'away'; st.t = 0; st.fill = 0; st.trips++; }
       } else if (st.state === 'away' && st.t > 0.8) {                // an empty cart comes back from the other end
-        st.state = 'arriving'; st.t = 0; st.from = st.exit > 0 ? G.x0 - 14 - st.cx : G.x1 + 14 - st.cx; st.ox = st.from;
+        st.state = 'arriving'; st.t = 0; st.from = st.exit > 0 ? G.x1 + 14 - st.cx : G.x0 - 14 - st.cx; st.ox = st.from;   // the same cart comes back emptied
         if (here) tone(70, 1.8, 'sawtooth', 0.02, 95);
       } else if (st.state === 'arriving') {
-        const k = Math.min(1, st.t / 2);
+        const k = Math.min(1, st.t / 3);
         const nx = st.from * (1 - k) * (1 - k);          // eases out to a stop at its spot
         st.wheel += (nx - st.ox) / 2.9; st.ox = nx;
         if (k >= 1) { st.ox = 0; st.state = 'idle'; if (here) { noiseBurst(0.08, 0.05); tone(180, 0.08, 'triangle', 0.04); } }
@@ -1321,19 +1351,7 @@ function updateStations(dt) {
       st.open += (target - st.open) * Math.min(1, dt * 10);
       st.belt += dt * (st.openT > 0 ? 30 : 4);           // the conveyor inside speeds up while gold goes in
     }
-    if (st.type === 'bucket') {                         // winch it up to the pulley, tip it, lower it back down
-      st.t += dt;
-      if (st.state === 'loading' && st.t > 0.6) { st.state = 'rising'; st.t = 0; if (inCurrentRoom(st.cx, st.rest)) tone(140, 1.4, 'sawtooth', 0.025, 90); }
-      else if (st.state === 'rising') {
-        const k = Math.min(1, st.t / 1.6); st.by = st.rest + (st.top + 8 - st.rest) * (k * k * (3 - 2 * k)); st.spin += dt * 9;
-        if (k >= 1) { st.state = 'top'; st.t = 0; if (inCurrentRoom(st.cx, st.top)) { noiseBurst(0.25, 0.08); tone(500, 0.1, 'triangle', 0.04); } }
-      } else if (st.state === 'top' && st.t > 0.7) { st.state = 'lowering'; st.t = 0; st.fill = 0; }
-      else if (st.state === 'lowering') {
-        const k = Math.min(1, st.t / 1.6); st.by = st.top + 8 + (st.rest - st.top - 8) * (k * k * (3 - 2 * k)); st.spin -= dt * 9;
-        if (k >= 1) { st.state = 'idle'; st.by = st.rest; }
-      }
-      st.box.y = st.by - 6;
-    }
+    if (st.type === 'bucket') updateHoist(st, dt);
     const ready = st.type === 'chute' || st.state === 'idle';
     if (ready && satchel.length && state === 'playing' && overlap(p, st.box)) deposit(st);
   }
@@ -1346,6 +1364,51 @@ function updateStations(dt) {
     }
   }
   flyers = flyers.filter(f => !f.done);
+}
+
+// Bucket hoist: winch up → trolley runs along the roof track to the hopper → tip → back → lower.
+function updateHoist(st, dt) {
+  st.t += dt;
+  const here = inCurrentRoom(st.cx, st.rest), ease = k => k * k * (3 - 2 * k), hi = st.top + 20;
+  const prevTx = st.tx;
+  if (st.state === 'loading' && st.t > 0.6) { st.state = 'rising'; st.t = 0; if (here) tone(140, 1.4, 'sawtooth', 0.025, 90); }
+  else if (st.state === 'rising') {
+    const k = Math.min(1, st.t / 1.5); st.by = st.rest + (hi - st.rest) * ease(k); st.spin += dt * 9;
+    if (k >= 1) { st.state = 'out'; st.t = 0; if (here) { noiseBurst(0.1, 0.05); tone(110, 1.2, 'sawtooth', 0.018, 140); } }
+  } else if (st.state === 'out') {                                   // trolley rolls along the track to the hopper
+    const k = Math.min(1, st.t / 1.3); st.tx = st.cx + (st.hopX - st.cx) * ease(k);
+    if (k >= 1) { st.state = 'tip'; st.t = 0; if (here) { tone(300, 0.08, 'triangle', 0.04); } }
+  } else if (st.state === 'tip') {                                   // tip it into the hopper
+    const k = Math.min(1, st.t / 1.1); st.tilt = st.dir * 1.9 * Math.sin(Math.min(1, k * 1.6) * Math.PI / 2) * (k < 0.75 ? 1 : (1 - k) / 0.25);
+    if (st.fill && k > 0.25) {                                       // the gold pours out
+      const pour = Math.min(st.fill, Math.ceil(dt * 30));
+      for (let i = 0; i < pour; i++) st.slide.push({ x: st.tx + st.dir * 4 + rnd(-1, 1), y: st.by + 1, vx: st.dir * rnd(4, 14), vy: rnd(-5, 5), ph: 'fall', g: Math.random() < 0.8 });
+      st.fill -= pour; st.hop += pour;
+      if (here && pour) tone(rnd(1400, 2200), 0.04, 'square', 0.02);
+    }
+    if (k >= 1) { st.state = 'back'; st.t = 0; st.tilt = 0; if (here) tone(140, 1.2, 'sawtooth', 0.018, 110); }
+  } else if (st.state === 'back') {
+    const k = Math.min(1, st.t / 1.3); st.tx = st.hopX + (st.cx - st.hopX) * ease(k);
+    if (k >= 1) { st.state = 'lowering'; st.t = 0; st.tx = st.cx; }
+  } else if (st.state === 'lowering') {
+    const k = Math.min(1, st.t / 1.5); st.by = hi + (st.rest - hi) * ease(k); st.spin -= dt * 9;
+    if (k >= 1) { st.state = 'idle'; st.by = st.rest; }
+  }
+  // the bucket swings a little on its rope when the trolley starts and stops
+  const acc = (st.tx - prevTx) / Math.max(dt, 1e-4);
+  st.swingV = (st.swingV || 0) + (-(st.swing || 0) * 40 - (st.swingV || 0) * 3 - (acc - (st.lastV || 0)) * 0.9) * dt;
+  st.lastV = acc; st.swing = Math.max(-0.4, Math.min(0.4, (st.swing || 0) + st.swingV * dt));
+  // nuggets: fall into the hopper, then trickle down the chute into the rock
+  const hopTop = st.top + 27, chuteY = st.top + 38;
+  for (const n of st.slide) {
+    if (n.ph === 'fall') { n.vy += 220 * dt; n.x += n.vx * dt; n.y += n.vy * dt;
+      if (Math.abs(n.x - st.hopX) > 4.5) n.x = st.hopX + Math.sign(n.x - st.hopX) * 4.5;
+      if (n.y > hopTop + 3) { n.ph = 'wait'; n.t = rnd(0.2, 1.4); } }
+    else if (n.ph === 'wait') { n.t -= dt; if (n.t <= 0) { n.ph = 'chute'; n.x = st.hopX + st.dir * 2; n.y = chuteY - 1; } }
+    else if (n.ph === 'chute') { n.x += st.dir * 22 * dt; n.y += 7 * dt; if ((n.x - st.wallX) * st.dir > 0) { n.ph = 'gone'; st.hop = Math.max(0, st.hop - 1); if (here && Math.random() < 0.5) tone(rnd(700, 1100), 0.03, 'square', 0.012); } }
+  }
+  st.slide = st.slide.filter(n => n.ph !== 'gone');
+  st.box.x = st.tx - 10; st.box.y = st.by - 6;
 }
 
 // Dying spills the satchel – the nuggets stay where they land until collected.
@@ -1781,9 +1844,14 @@ function drawStations() {   // classic: buckets and chutes
   for (const st of stations) {
     if (st.type === 'cart') continue;
     else if (st.type === 'bucket') {
-      rect(st.cx - 14, st.top, 28, 3, '#6a4626');
-      rect(st.cx - 3, st.top + 3, 1, Math.max(0, Math.round(st.by - st.top - 6)), '#c8a466');
-      rect(st.cx - 5, Math.round(st.by) - 3, 10, 9, '#8a6034'); rect(st.cx - 5, Math.round(st.by), 10, 1, '#3a3632');
+      const x0 = Math.min(st.cx - st.dir * 14, st.wallX), x1 = Math.max(st.cx - st.dir * 14, st.wallX), tx = Math.round(st.tx);
+      rect(x0, st.top, x1 - x0, 3, '#6a4626');
+      rect(st.hopX - 6, st.top + 27, 12, 3, '#7a5430'); rect(st.hopX - 3, st.top + 30, 6, 6, '#7a5430');
+      rect(Math.min(st.hopX, st.wallX), st.top + 37, Math.abs(st.wallX - st.hopX), 2, '#6a4626');
+      if (st.hop) rect(st.hopX - 4, st.top + 25, 8, 2, '#ffd23a');
+      rect(tx - 1, st.top + 3, 1, Math.max(0, Math.round(st.by - st.top - 6)), '#c8a466');
+      rect(tx - 5, Math.round(st.by) - 3, 10, 9, '#8a6034'); rect(tx - 5, Math.round(st.by), 10, 1, '#3a3632');
+      for (const n of st.slide) if (n.ph !== 'wait') rect(n.x, n.y, 2, 2, '#ffd23a');
     } else {
       const x = st.dir > 0 ? st.wx : st.wx - 3;
       rect(x, st.cy - 7, 3, 14, st.open > 0.5 ? '#000' : '#7e5630');
@@ -2335,33 +2403,82 @@ function rope(g, x0, y0, x1, y1, w = 0.9) {          // twisted rope: two tones 
 }
 
 function drawBucketHD(g, st) {
-  const { cx, top } = st, py = top + 4.5;
-  // timber head-beam bolted across the ceiling, with an iron bracket
-  g.fillStyle = woodGrad(g, 0, top, 0, top + 3.6, '#6e4a26'); g.fillRect(cx - 15, top, 30, 3.6);
-  grain(g, cx - 15, top, 30, 3.6, st.c, 2); rivet(g, cx - 12, top + 1.8); rivet(g, cx + 12, top + 1.8);
-  g.fillStyle = '#3a3632'; g.fillRect(cx - 1, top + 3.4, 2, 2);
-  // pulley wheel – turns while the rope moves
-  g.fillStyle = '#2e2a26'; g.beginPath(); g.arc(cx, py + 1.5, 3.4, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = '#7a746e'; g.lineWidth = 0.4; g.beginPath(); g.arc(cx, py + 1.5, 2.8, 0, Math.PI * 2); g.stroke();
-  g.beginPath(); for (let a = 0; a < 3; a++) { const an = st.spin + a * Math.PI / 3; g.moveTo(cx + Math.cos(an) * 2.7, py + 1.5 + Math.sin(an) * 2.7); g.lineTo(cx - Math.cos(an) * 2.7, py + 1.5 - Math.sin(an) * 2.7); } g.stroke();
-  g.fillStyle = '#a09a94'; g.beginPath(); g.arc(cx, py + 1.5, 0.7, 0, Math.PI * 2); g.fill();
-  // rope: over the pulley, one end off to the winch side, the other down to the bucket
-  rope(g, cx + 3.3, py + 1.5, cx + 14, top + 2);
-  rope(g, cx - 3.3, py + 1.5, cx - 3.3, st.by - 4.2);
-  // wooden bucket: tapered staves, two iron hoops, a wire bail
-  const by = st.by, bt = by - 3.5, bb = by + 6;
-  g.strokeStyle = '#4a4642'; g.lineWidth = 0.45; g.beginPath(); g.moveTo(-4.6 + cx, bt + 0.3); g.quadraticCurveTo(cx - 3.3, bt - 5, cx - 2, bt + 0.3); g.stroke();
-  g.beginPath(); g.moveTo(cx - 3.3, bt - 3.6); g.lineTo(cx - 3.3, st.by - 4.2); g.stroke();
-  g.fillStyle = woodGrad(g, cx - 5, 0, cx + 5, 0, '#8a6034');
-  g.beginPath(); g.moveTo(cx - 5.2, bt); g.lineTo(cx + 5.2, bt); g.lineTo(cx + 4.2, bb); g.lineTo(cx - 4.2, bb); g.closePath(); g.fill();
-  g.strokeStyle = 'rgba(40,20,6,0.55)'; g.lineWidth = 0.25;
-  for (let i = -3; i <= 3; i += 1.5) { g.beginPath(); g.moveTo(cx + i * 1.05, bt); g.lineTo(cx + i * 0.85, bb); g.stroke(); }
-  for (const hy of [bt + 1.6, bb - 1.6]) { g.fillStyle = '#3a3632'; g.fillRect(cx - 5, hy - 0.5, 10, 1); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(cx - 5, hy - 0.5, 10, 0.3); }
-  if (st.state !== 'idle' && st.state !== 'lowering' && st.fill) goldHeap(g, cx, bt + 0.3, 8, 2.5, st.c + 7);
-  if (st.state === 'idle') {          // a little hand-painted arrow inviting a deposit
+  const { cx, top, dir, wallX, hopX } = st, tx = st.tx;
+  const railY = top + 4.2, x0 = Math.min(cx - dir * 14, wallX), x1 = Math.max(cx - dir * 14, wallX);
+  // long timber beam bolted to the roof, an iron track under it, hanger straps
+  g.fillStyle = woodGrad(g, 0, top, 0, top + 3.4, '#6e4a26'); g.fillRect(x0, top, x1 - x0, 3.4);
+  grain(g, x0, top, x1 - x0, 3.4, st.c, 2);
+  for (let x = x0 + 4; x < x1 - 2; x += 12) { g.fillStyle = '#3a3632'; g.fillRect(x, top - 0.6, 1.2, 4.6); rivet(g, x + 0.6, top + 1.7); }
+  g.fillStyle = '#3c3a38'; g.fillRect(x0 + 2, railY - 0.5, x1 - x0 - 2, 1.1);
+  g.fillStyle = 'rgba(230,225,215,0.35)'; g.fillRect(x0 + 2, railY - 0.5, x1 - x0 - 2, 0.3);
+  // hand winch at the far end of the beam: drum on a bracket, crank handle
+  const wx = cx - dir * 11, wy = top + 7.5;
+  g.fillStyle = '#3a3632'; g.fillRect(wx - 0.8, top + 3, 1.6, 4);
+  g.fillStyle = woodGrad(g, 0, wy - 2.6, 0, wy + 2.6, '#6a4626'); g.fillRect(wx - 3, wy - 2.6, 6, 5.2);
+  g.fillStyle = 'rgba(200,170,110,0.6)'; for (let i = -2; i <= 2; i++) g.fillRect(wx - 3, wy + i * 0.95 - 0.2, 6, 0.4);    // wound rope
+  const ca = st.spin * 0.6; g.strokeStyle = '#4a4642'; g.lineWidth = 0.6;
+  g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + Math.cos(ca) * 3.5, wy + Math.sin(ca) * 3.5); g.stroke();
+  g.fillStyle = '#5a4026'; g.beginPath(); g.arc(wx + Math.cos(ca) * 3.5, wy + Math.sin(ca) * 3.5, 0.7, 0, Math.PI * 2); g.fill();
+  // hopper fixed to the wall, with a chute sloping into a hole in the rock
+  drawHopperHD(g, st);
+  // trolley: a little iron carriage on two wheels, carrying the sheave
+  g.fillStyle = '#2e2a26'; g.fillRect(tx - 3.6, railY + 0.4, 7.2, 2.2);
+  for (const ox of [-2.2, 2.2]) { g.fillStyle = '#1e1c1a'; g.beginPath(); g.arc(tx + ox, railY - 0.2, 1.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#8a8480'; g.beginPath(); g.arc(tx + ox, railY - 0.2, 0.35, 0, Math.PI * 2); g.fill(); }
+  const py = railY + 4.2;
+  g.fillStyle = '#3a3632'; g.fillRect(tx - 0.7, railY + 2.4, 1.4, 1.8);
+  g.fillStyle = '#2e2a26'; g.beginPath(); g.arc(tx, py, 2.6, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#7a746e'; g.lineWidth = 0.35; g.beginPath(); g.arc(tx, py, 2.1, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); for (let a = 0; a < 3; a++) { const an = st.spin + a * Math.PI / 3; g.moveTo(tx + Math.cos(an) * 2, py + Math.sin(an) * 2); g.lineTo(tx - Math.cos(an) * 2, py - Math.sin(an) * 2); } g.stroke();
+  // rope: winch drum → over the sheave → down to the bucket bail
+  const sx = tx - dir * 2.5, hang = st.by - 8.5;
+  rope(g, wx + dir * 3, wy - 2.2, sx, py - 1.5);
+  const bx = tx - dir * 2.5 + Math.sin(st.swing) * (hang - py);
+  rope(g, sx, py, bx, hang);
+  // the bucket, swinging and tipping about its bail
+  g.save(); g.translate(bx, hang); g.rotate(st.swing + st.tilt); drawBucketBody(g, st); g.restore();
+  for (const n of st.slide) if (n.ph === 'fall' || n.ph === 'chute') nugget(g, n.x, n.y, n.g);
+  if (st.state === 'idle') {          // a little hand-painted sign inviting a deposit
     g.globalAlpha = 0.5 + 0.3 * Math.sin(globalT * 3);
-    text('$', cx, bb + 1.5, '#ffd23a', 5, 'center'); g.globalAlpha = 1;
+    text('$', bx, st.by + 7.5, '#ffd23a', 5, 'center'); g.globalAlpha = 1;
   }
+}
+function nugget(g, x, y, gold) {
+  const gr = g.createRadialGradient(x - 0.3, y - 0.3, 0.1, x, y, 1.3);
+  gr.addColorStop(0, gold ? '#fff2a8' : '#ffc8a0'); gr.addColorStop(0.5, gold ? '#e0aa30' : '#c87040'); gr.addColorStop(1, gold ? '#8a5a08' : '#6a3010');
+  g.fillStyle = gr; g.beginPath(); g.arc(x, y, 1, 0, Math.PI * 2); g.fill();
+}
+function drawBucketBody(g, st) {       // drawn hanging from its bail at (0,0)
+  const bt = 4.6, bb = 14;
+  g.strokeStyle = '#4a4642'; g.lineWidth = 0.45;
+  g.beginPath(); g.moveTo(-5, bt + 0.3); g.quadraticCurveTo(0, -1.2, 5, bt + 0.3); g.stroke();
+  g.fillStyle = woodGrad(g, -5, 0, 5, 0, '#8a6034');
+  g.beginPath(); g.moveTo(-5.2, bt); g.lineTo(5.2, bt); g.lineTo(4.2, bb); g.lineTo(-4.2, bb); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(40,20,6,0.55)'; g.lineWidth = 0.25;
+  for (let i = -3; i <= 3; i += 1.5) { g.beginPath(); g.moveTo(i * 1.05, bt); g.lineTo(i * 0.85, bb); g.stroke(); }
+  for (const hy of [bt + 1.6, bb - 1.6]) { g.fillStyle = '#3a3632'; g.fillRect(-5, hy - 0.5, 10, 1); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(-5, hy - 0.5, 10, 0.3); }
+  g.fillStyle = 'rgba(20,10,4,0.7)'; g.beginPath(); g.ellipse(0, bt, 5, 0.9, 0, 0, Math.PI * 2); g.fill();
+  if (st.fill) goldHeap(g, 0, bt + 0.3, 8, 2.5 * Math.min(1, st.fill / 6 + 0.4), st.c + 7);
+}
+function drawHopperHD(g, st) {
+  const { dir, wallX, hopX, top } = st, ht = top + 27, hb = top + 35, cy = top + 38;
+  // dark hole in the rock where the chute goes
+  g.fillStyle = '#060403'; g.beginPath(); g.ellipse(wallX, cy + 1.5, 2.2, 3.2, 0, 0, Math.PI * 2); g.fill();
+  // sloping plank chute from the hopper's spout into the hole
+  g.fillStyle = woodGrad(g, 0, cy - 1.4, 0, cy + 1.6, '#6a4626');
+  g.beginPath(); g.moveTo(hopX, cy - 1.6); g.lineTo(wallX, cy + 0.6); g.lineTo(wallX, cy + 3); g.lineTo(hopX, cy + 1); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(0,0,0,0.4)'; g.beginPath(); g.moveTo(hopX, cy + 0.6); g.lineTo(wallX, cy + 2.6); g.lineTo(wallX, cy + 3); g.lineTo(hopX, cy + 1); g.fill();
+  // iron brackets bolting the hopper to the wall
+  g.fillStyle = '#3a3632'; g.fillRect(Math.min(hopX, wallX), ht + 1, Math.abs(wallX - hopX), 1); g.fillRect(Math.min(hopX, wallX), hb - 2, Math.abs(wallX - hopX), 1);
+  // the hopper: a tapered plank bin with a spout
+  g.fillStyle = woodGrad(g, hopX - 6, 0, hopX + 6, 0, '#7a5430');
+  g.beginPath(); g.moveTo(hopX - 6.5, ht); g.lineTo(hopX + 6.5, ht); g.lineTo(hopX + 2.5, hb); g.lineTo(hopX - 2.5, hb); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(40,20,6,0.5)'; g.lineWidth = 0.25;
+  for (let i = 1; i < 4; i++) { const y = ht + i * (hb - ht) / 4, w = 6.5 - 4 * i / 4; g.beginPath(); g.moveTo(hopX - w, y); g.lineTo(hopX + w, y); g.stroke(); }
+  g.fillStyle = '#3e3a36'; g.fillRect(hopX - 7, ht - 0.8, 14, 1.1); g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(hopX - 7, ht - 0.8, 14, 0.3);
+  g.fillStyle = woodGrad(g, 0, hb, 0, cy, '#5e4022'); g.fillRect(hopX - 2.5, hb - 0.2, 5, cy - hb);
+  if (st.hop > 0) goldHeap(g, hopX, ht + 0.4, 9 * Math.min(1, 0.4 + st.hop / 10), 1 + 2.5 * Math.min(1, st.hop / 8), st.c + 31);
+  rivet(g, hopX - 5, ht + 1.2); rivet(g, hopX + 5, ht + 1.2);
 }
 
 function drawChuteHD(g, st) {

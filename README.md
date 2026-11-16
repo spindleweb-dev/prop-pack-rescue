@@ -27,8 +27,9 @@ JavaScript + HTML Canvas as a learning project. All code and graphics are origin
 - Segmented laser, dynamite with realistic explosions, breakable walls
 - Gold & copper ore veins – mine them for money ($)
 - Old West gold run: nuggets go into a satchel (max 12) that makes you heavier and drains power
-  faster. Bank them at an ore cart in a back gallery (it rolls off into the tunnel with your gold and
-  an empty one comes back), a rope-and-pulley bucket hoist, or a timber ore chute.
+  faster. Bank them at an ore cart waiting at the far end of a back gallery (it rolls the length of
+  the tunnel with your gold and comes back empty), a bucket hoist whose trolley runs along the roof to
+  tip your gold into a hopper and chute in the rock wall, or a timber ore chute.
   Banking 8+ nuggets at once earns a 25% big-haul bonus. Die and the satchel spills; rescuing the
   miner banks whatever you're carrying. Timber mine supports shore up the shafts.
 - Creatures: bats, spiders, moths, wall snakes (lunge out of holes; only hittable when out) and
