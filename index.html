@@ -2705,39 +2705,51 @@ function hudDynamite(g, x, y, i) {      // a paper-wrapped stick with a printed 
   g.restore();
 }
 
-function hudCoin(g, x, y) {             // a minted gold coin, slightly tilted so its thickness shows
-  const r = 4.1, ry = 3.9, th = 0.9;
+function hudCoin(g, x, y) {             // a face-on gold coin: wide raised rim, recessed face, big bevelled $
+  const R = 5.1, ri = R - 1.35;
   g.save();
-  g.fillStyle = 'rgba(0,0,0,0.5)'; g.beginPath(); g.ellipse(x + 0.7, y + th + 0.9, r, ry, 0, 0, Math.PI * 2); g.fill();
-  // edge (thickness) with reeding
-  g.fillStyle = '#7a5404'; g.beginPath(); g.ellipse(x, y + th, r, ry, 0, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = 'rgba(255,220,120,0.45)'; g.lineWidth = 0.18;
-  for (let a = 0.15; a < Math.PI - 0.1; a += 0.2) { const ex = x + Math.cos(a) * r, ey = y + Math.sin(a) * ry; g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex, ey + th); g.stroke(); }
-  // face
-  const fg = g.createRadialGradient(x - 1.5, y - 1.6, 0.2, x, y, r);
-  fg.addColorStop(0, '#fff8c0'); fg.addColorStop(0.35, '#ffd84a'); fg.addColorStop(0.8, '#d39c12'); fg.addColorStop(1, '#9a6a06');
-  g.fillStyle = fg; g.beginPath(); g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2); g.fill();
-  // raised rim and a ring of beads
-  g.strokeStyle = '#b07e0a'; g.lineWidth = 0.5; g.beginPath(); g.ellipse(x, y, r - 0.55, ry - 0.55, 0, 0, Math.PI * 2); g.stroke();
-  g.strokeStyle = 'rgba(255,245,190,0.6)'; g.lineWidth = 0.22; g.beginPath(); g.ellipse(x, y, r - 0.3, ry - 0.3, 0, Math.PI * 0.9, Math.PI * 1.6); g.stroke();
-  g.fillStyle = 'rgba(140,95,5,0.7)';
-  for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) { g.beginPath(); g.arc(x + Math.cos(a) * (r - 1.2), y + Math.sin(a) * (ry - 1.2), 0.17, 0, Math.PI * 2); g.fill(); }
-  // embossed $: dark shadow down-right, light edge up-left, then the gold relief
-  const ft = 'bold 5.2px monospace'; g.font = ft; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = 'rgba(90,55,0,0.95)'; g.fillText('$', x + 0.35, y + 0.4);
-  g.fillStyle = 'rgba(255,250,210,0.9)'; g.fillText('$', x - 0.2, y - 0.2);
-  g.fillStyle = '#d9a018'; g.fillText('$', x, y + 0.05);
+  g.fillStyle = 'rgba(0,0,0,0.5)'; g.beginPath(); g.arc(x + 0.6, y + 0.7, R, 0, Math.PI * 2); g.fill();     // shadow
+  // rim: lit from the upper left
+  const rg = g.createLinearGradient(x - R, y - R, x + R, y + R);
+  rg.addColorStop(0, '#fff2a0'); rg.addColorStop(0.35, '#e8c040'); rg.addColorStop(0.7, '#b8891c'); rg.addColorStop(1, '#7a5608');
+  g.fillStyle = rg; g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(90,60,5,0.8)'; g.lineWidth = 0.25; g.stroke();
+  // groove where the rim steps down to the face
+  g.strokeStyle = 'rgba(100,66,4,0.9)'; g.lineWidth = 0.45; g.beginPath(); g.arc(x, y, ri + 0.15, 0, Math.PI * 2); g.stroke();
+  // recessed face: shaded the opposite way to the rim, so it reads as sunk in
+  const fg = g.createLinearGradient(x - ri, y - ri, x + ri, y + ri);
+  fg.addColorStop(0, '#b88a1e'); fg.addColorStop(0.45, '#dcb03a'); fg.addColorStop(1, '#f0cf5a');
+  g.fillStyle = fg; g.beginPath(); g.arc(x, y, ri, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(255,240,170,0.7)'; g.lineWidth = 0.25;                       // light catching the inner lip
+  g.beginPath(); g.arc(x, y, ri - 0.1, Math.PI * 0.05, Math.PI * 0.75); g.stroke();
+  // soft brushed-metal speckle
+  for (let k = 0; k < 26; k++) {
+    const a = hash(k, 1, 77) * Math.PI * 2, d = Math.sqrt(hash(k, 2, 77)) * (ri - 0.4);
+    g.fillStyle = hash(k, 3, 77) > 0.5 ? 'rgba(255,245,190,0.18)' : 'rgba(120,80,5,0.16)';
+    g.fillRect(x + Math.cos(a) * d, y + Math.sin(a) * d, 0.35, 0.35);
+  }
+  // the $: dark bevel shadow, light bevel edge, gold fill, then a fine inner outline
+  g.font = 'bold 7.4px Georgia, "Times New Roman", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const tx = x + 0.05, ty = y + 0.45;
+  g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(95,60,0,0.9)'; g.lineWidth = 1.1; g.strokeText('$', tx + 0.3, ty + 0.3);
+  g.strokeStyle = 'rgba(255,246,190,0.95)'; g.lineWidth = 0.9; g.strokeText('$', tx - 0.2, ty - 0.2);
+  const sg = g.createLinearGradient(x - 2, y - 3, x + 2, y + 3);
+  sg.addColorStop(0, '#ffe680'); sg.addColorStop(0.5, '#e2b030'); sg.addColorStop(1, '#b07c10');
+  g.strokeStyle = sg; g.lineWidth = 0.75; g.strokeText('$', tx, ty);
+  g.fillStyle = sg; g.fillText('$', tx, ty);
+  g.strokeStyle = 'rgba(130,85,5,0.55)'; g.lineWidth = 0.18; g.strokeText('$', tx, ty);
   // a glint that sweeps across every few seconds
   const ph = (globalT % 4) / 0.6;
   if (ph < 1) {
-    g.save(); g.beginPath(); g.ellipse(x, y, r, ry, 0, 0, Math.PI * 2); g.clip();
-    const gx = x - r - 2 + ph * (2 * r + 4);
-    const sg = g.createLinearGradient(gx - 1.5, y - r, gx + 1.5, y + r);
-    sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,240,0.75)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = sg; g.beginPath(); g.moveTo(gx - 1, y - r); g.lineTo(gx + 1.2, y - r); g.lineTo(gx + 0.2, y + r); g.lineTo(gx - 2, y + r); g.fill();
+    g.save(); g.beginPath(); g.arc(x, y, R, 0, Math.PI * 2); g.clip();
+    const gx = x - R - 2 + ph * (2 * R + 4);
+    const gl = g.createLinearGradient(gx - 1.5, 0, gx + 1.5, 0);
+    gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(0.5, 'rgba(255,255,235,0.6)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gl; g.beginPath(); g.moveTo(gx - 1, y - R); g.lineTo(gx + 1.6, y - R); g.lineTo(gx + 0.4, y + R); g.lineTo(gx - 2.2, y + R); g.fill();
     g.restore();
   }
-  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(x - 1.9, y - 1.9, 0.45, 0, Math.PI * 2); g.fill();   // specular point
+  g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(x - 3.3, y - 2.9, 0.4, 0, Math.PI * 2); g.fill();   // specular point on the rim
   g.restore();
 }
 
@@ -2759,7 +2771,7 @@ function drawHUDHD() {
   text('LEVEL ' + (levelIndex + 1) + '  ·  ENHANCED [G]', 316, y + 3.5, '#9a9aa8', 6.5, 'right');
   for (let i = 0; i < Math.min(lives, 8); i++) hudHelmet(g, 9 + i * 10.5, y + 20.5, i);   // spare heroes
   for (let i = 0; i < dynamiteLeft; i++) hudDynamite(g, 96 + i * 5.6, y + 13.6, i);         // sticks left
-  hudCoin(g, 146, y + 17.5);
+  hudCoin(g, 145.5, y + 16.8);
   text(money.toLocaleString('en-US'), 152, y + 13.5, '#ffd23a', 9);
   g.shadowColor = 'rgba(255,200,80,0.6)'; g.shadowBlur = 8;
   text(String(score).padStart(6, '0'), 316, y + 12.5, '#ffffff', 10, 'right');
